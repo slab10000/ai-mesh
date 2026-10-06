@@ -1,0 +1,174 @@
+{
+  "group": "5df7fa56a7faf87fc5316f96438b8b13",
+  "source_window": "wb5971d3a",
+  "source_runtime": {
+    "active": true,
+    "group": "5df7fa56a7faf87fc5316f96438b8b13",
+    "window": "wb5971d3a",
+    "machine": "macbook",
+    "agent": "codex",
+    "project": "/Users/blasmorenolaguna/Documents/TODO/Coding/multi-agent/artifacts/e2e/handoff-live",
+    "pid": 38870,
+    "started_at": "2026-10-06T18:01:57.57995Z"
+  },
+  "destination_window": "wecc7a505",
+  "destination_runtime": {
+    "active": true,
+    "group": "5df7fa56a7faf87fc5316f96438b8b13",
+    "window": "wecc7a505",
+    "machine": "green-lighthouse",
+    "agent": "codex",
+    "project": "/home/blas",
+    "pid": 780522,
+    "started_at": "2026-10-06T18:05:13.756979746Z"
+  },
+  "keyboard_first_switch_no_context": true,
+  "keyboard_roundtrip": {
+    "sequence": [
+      "macbook",
+      "green-lighthouse",
+      "macbook",
+      "green-lighthouse"
+    ],
+    "source_pid_unchanged": true,
+    "destination_pid_unchanged": true,
+    "handoff_count": 0
+  },
+  "workspace_handoff": {
+    "context_delivery": "inbox",
+    "handoff": {
+      "id": "e4426ee943e9f5c38cb446a7d1d4dc88",
+      "group": "5df7fa56a7faf87fc5316f96438b8b13",
+      "window": "wecc7a505",
+      "source": "macbook",
+      "destination": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas",
+      "context_path": "/home/blas/.mesh/handoffs/e4426ee943e9f5c38cb446a7d1d4dc88/CONTEXT.md",
+      "inputs_path": "/home/blas/.mesh/handoffs/e4426ee943e9f5c38cb446a7d1d4dc88/inputs",
+      "created_at": "2026-10-06T19:03:53.346762017Z",
+      "fingerprint": "080b0c19e062b457614b9bdf907bc279dcfd95de3de4d78708ce34f9fb6184f5"
+    },
+    "session_reused": true,
+    "source_session_preserved": true
+  },
+  "explicit_handoffs": [
+    {
+      "id": "a0893e9800131f48c0789b65a93a071d",
+      "group": "5df7fa56a7faf87fc5316f96438b8b13",
+      "window": "wecc7a505",
+      "source": "macbook",
+      "destination": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas/.ai-mesh/projects/5df7fa56a7faf87fc5316f96438b8b13",
+      "context_path": "/home/blas/.ai-mesh/projects/5df7fa56a7faf87fc5316f96438b8b13/.mesh/handoffs/a0893e9800131f48c0789b65a93a071d/CONTEXT.md",
+      "inputs_path": "/home/blas/.ai-mesh/projects/5df7fa56a7faf87fc5316f96438b8b13/.mesh/handoffs/a0893e9800131f48c0789b65a93a071d/inputs",
+      "created_at": "2026-10-06T18:09:29.217202424Z",
+      "read_at": "2026-10-06T19:05:16.680106947Z",
+      "fingerprint": "77230c27f8ba1dd7e37c4a1244449a130a4e08964764b3e845746bb45cb46177",
+      "input_sha256": "a647ad98f1278de6515ffe7b685bb4a2af789758aa7a310d85a649567b27326a"
+    },
+    {
+      "id": "e4426ee943e9f5c38cb446a7d1d4dc88",
+      "group": "5df7fa56a7faf87fc5316f96438b8b13",
+      "window": "wecc7a505",
+      "source": "macbook",
+      "destination": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas",
+      "context_path": "/home/blas/.mesh/handoffs/e4426ee943e9f5c38cb446a7d1d4dc88/CONTEXT.md",
+      "inputs_path": "/home/blas/.mesh/handoffs/e4426ee943e9f5c38cb446a7d1d4dc88/inputs",
+      "created_at": "2026-10-06T19:03:53.346762017Z",
+      "read_at": "2026-10-06T19:05:16.825223889Z",
+      "fingerprint": "080b0c19e062b457614b9bdf907bc279dcfd95de3de4d78708ce34f9fb6184f5",
+      "input_sha256": "a647ad98f1278de6515ffe7b685bb4a2af789758aa7a310d85a649567b27326a"
+    }
+  ],
+  "handoff_source_pid_unchanged": true,
+  "handoff_destination_pid_unchanged": true,
+  "ssh_recovery_preserved_destination_pid": true,
+  "fresh_handoff": {
+    "context_delivery": "inbox",
+    "handoff": {
+      "id": "effccd15694ecf8329b7e812581119c7",
+      "group": "5df7fa56a7faf87fc5316f96438b8b13",
+      "window": "w22d4da50",
+      "source": "macbook",
+      "destination": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas/ai-mesh-e2e/project/handoff-startup-final",
+      "context_path": "/home/blas/ai-mesh-e2e/project/handoff-startup-final/.mesh/handoffs/effccd15694ecf8329b7e812581119c7/CONTEXT.md",
+      "inputs_path": "/home/blas/ai-mesh-e2e/project/handoff-startup-final/.mesh/handoffs/effccd15694ecf8329b7e812581119c7/inputs",
+      "created_at": "2026-10-06T19:13:37.580580536Z",
+      "fingerprint": "3eb55d0ce5466b23ae25ac8841f0c627f40a4d048cbddea21e82c39ccc3ead55"
+    },
+    "session_reused": false,
+    "source_session_preserved": true
+  },
+  "fresh_handoff_before_ack_fix": {
+    "context_delivery": "inbox",
+    "handoff": {
+      "id": "cb1d69b72cd48928bb2bd6829866b0b7",
+      "group": "5df7fa56a7faf87fc5316f96438b8b13",
+      "window": "w96cbaa5e",
+      "source": "macbook",
+      "destination": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas/ai-mesh-e2e/project",
+      "context_path": "/home/blas/ai-mesh-e2e/project/.mesh/handoffs/cb1d69b72cd48928bb2bd6829866b0b7/CONTEXT.md",
+      "inputs_path": "/home/blas/ai-mesh-e2e/project/.mesh/handoffs/cb1d69b72cd48928bb2bd6829866b0b7/inputs",
+      "created_at": "2026-10-06T19:07:40.293535653Z",
+      "fingerprint": "65d286a4d4dbea73ce22305812c10f2f687a083a6cc75f6812739a81e0ce594b"
+    },
+    "session_reused": false,
+    "source_session_preserved": true
+  },
+  "fresh_handoff_final": {
+    "context_delivery": "inbox",
+    "handoff": {
+      "id": "effccd15694ecf8329b7e812581119c7",
+      "group": "5df7fa56a7faf87fc5316f96438b8b13",
+      "window": "w22d4da50",
+      "source": "macbook",
+      "destination": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas/ai-mesh-e2e/project/handoff-startup-final",
+      "context_path": "/home/blas/ai-mesh-e2e/project/handoff-startup-final/.mesh/handoffs/effccd15694ecf8329b7e812581119c7/CONTEXT.md",
+      "inputs_path": "/home/blas/ai-mesh-e2e/project/handoff-startup-final/.mesh/handoffs/effccd15694ecf8329b7e812581119c7/inputs",
+      "created_at": "2026-10-06T19:13:37.580580536Z",
+      "read_at": "2026-10-06T19:15:34.754746559Z",
+      "fingerprint": "3eb55d0ce5466b23ae25ac8841f0c627f40a4d048cbddea21e82c39ccc3ead55"
+    },
+    "session_reused": true,
+    "source_session_preserved": true
+  },
+  "fresh_runtime": {
+    "active": true,
+    "group": "5df7fa56a7faf87fc5316f96438b8b13",
+    "window": "w22d4da50",
+    "machine": "green-lighthouse",
+    "agent": "codex",
+    "project": "/home/blas/ai-mesh-e2e/project/handoff-startup-final",
+    "pid": 787453,
+    "started_at": "2026-10-06T19:13:38.605968188Z",
+    "first_handoff": "effccd15694ecf8329b7e812581119c7"
+  },
+  "workspace_acknowledgment": {
+    "id": "effccd15694ecf8329b7e812581119c7",
+    "fingerprint": "3eb55d0ce5466b23ae25ac8841f0c627f40a4d048cbddea21e82c39ccc3ead55",
+    "read_at": "2026-10-06T19:15:34.754746559Z"
+  },
+  "final_original_processes_alive": true,
+  "consumed_handoff_retry_idempotent": true,
+  "normal_new_directory_trust_prompt": true,
+  "verified_at": "2026-10-06T19:17:07.736759+00:00",
+  "checks": {
+    "go_vet": "passed",
+    "go_test_race": "passed",
+    "race_suite_seconds": 84.644
+  },
+  "regressions_fixed": [
+    "Menu-created destination now retains its actual live workspace.",
+    "Acknowledgments write within the workspace; global receipts remain immutable."
+  ]
+}

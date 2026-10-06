@@ -102,3 +102,40 @@ Verified on the installed Mac and green-lighthouse builds:
 The 13 command acceptance scenarios passed again. `go vet` and the full race-enabled Go suite passed, including offline retry, lost acknowledgments, atomic saves, direct-edit revision normalization, new/re-enrolled peers, and concurrent CLI/service publication. Provider inference and terminal screenshots above are from the October 5 validation; those were not repeated for this inventory-only change.
 
 The [recorded results](evidence/inventory-events.json) and `scripts/e2e_inventory.py` make this check reproducible. The test changed only uniquely named temporary capability notes and removed them afterward.
+
+## Live conversations and explicit handoff — October 6, 2026
+
+The computer picker and context transfer are separate paths. Ctrl-b m and `mesh switch` only change the visible conversation. `mesh handoff` explicitly transfers an agent-prepared brief and selected files, then changes the terminal. Returning never replaces a live conversation with a summary.
+
+Verified with real Codex on the Mac and green-lighthouse:
+
+- Ctrl-b m changed the same terminal from Mac to server. The server started with an empty inbox.
+- Mac → server → Mac → server restored the original chats. Their provider process IDs stayed **38870** and **780522**, and no handoffs were created by navigation.
+- The Mac agent responded to a natural-language request by checking machines, writing a brief and one selected file, and invoking `mesh handoff` itself. The visible terminal changed to the server automatically.
+- The existing server conversation consumed the explicit briefs on its next user turn. It retained `GREEN_CHAT_106`, incorporated `MAC_CHAT_106` and the blue-cover decision, read exactly `FILE_FROM_MAC_106`, and acknowledged both briefs.
+- SHA-256 comparison verified the selected file bytes. Both original agent processes remained alive after transfer and acknowledgment.
+- An SSH timeout during the interrupted test left the remote agent alive. Selecting the server again reattached the same process and conversation.
+- A workspace regression found during testing was fixed: handoff to an existing conversation uses its actual running workspace, including when the first menu visit used the remote home directory. The corrected live transfer arrived under `/home/blas/.mesh/handoffs/`.
+- A fresh conversation automatically read its brief and selected file, acknowledged the handoff within its own workspace, and reported `FRESH_START_106`, the blue-cover decision, `FILE_FROM_MAC_106`, and hostname `green-lighthouse`. The generated new directory showed Codex's normal trust prompt; no follow-up task prompt was needed. Retrying the consumed handoff with the same ID preserved its receipt and running conversation.
+
+`make check` passed on the final implementation (`go vet` and the full race-enabled Go suite, 84.644 seconds). The checks cover empty/invalid briefs, file and symlink boundaries, destination workspace preservation, per-conversation inboxes, acknowledgments, repeated IDs, offline destinations, lost staging replies, live process preservation, continuing background work, and controller authentication. A symlink test was adjusted to target a fresh conversation after workspace preservation correctly stopped honoring a different path for a live one.
+
+The fresh-workspace test also exposed an unnecessary global write in `mesh inbox ack`. It encountered Codex's normal filesystem restriction and the server's existing GitKraken approval hook. Acknowledgments now write a `READ.json` marker beside the received brief, within the agent's workspace. A concurrent acknowledgment test sets global receipt state read-only and verifies that consumption succeeds without changing it. Existing acknowledgments remain readable. No provider permission settings or hooks were changed.
+
+The Mac used Codex 0.160.1 and the server used 0.155.1, retaining their existing provider configuration and permissions. The Mac agent retried its machine check with the provider's normal network permission after a sandbox DNS failure. No permission-bypass flags were added. Claude's process adapter and instruction installation are covered by fixtures; successful real Claude inference is still not claimed.
+
+The [machine-readable report](evidence/conversation-handoff.json) records the session identities, original process IDs, explicit handoffs, file hashes, workspace acknowledgment, and checks. It also retains the earlier regression-test receipts to distinguish those attempts from the final verified behavior.
+
+Screenshots below are actual terminal output. The [short guide](QUICKSTART.md) and [manual checklist](TESTING.md#9-separate-navigation-from-context-transfer) explain how to reproduce the behavior. The terminal must be launched through Mesh; this does not switch the Codex desktop chat. Existing agents consume new briefs on their next user turn, so a context handoff to an already-running agent is not an automatic provider turn injection.
+
+![Computer picker over the original Mac conversation](evidence/06-live-computer-menu.jpg)
+
+![Original Mac conversation restored without a context transfer](evidence/07-original-mac-chat.jpg)
+
+![Original server conversation restored with its own marker](evidence/08-preserved-server-chat.jpg)
+
+![Explicit handoff received without replacing the server conversation](evidence/09-context-in-existing-chat.jpg)
+
+![Mac Codex invoked mesh handoff after a natural-language request](evidence/10-agent-triggered-handoff.jpg)
+
+![New destination conversation automatically continued and acknowledged its handoff](evidence/11-automatic-new-conversation.jpg)

@@ -17,7 +17,7 @@ Inside that terminal:
 | Ctrl-b, release, then **b** | Return to your previous session |
 | Ctrl-b, release, then **d** | Detach while keeping sessions alive |
 
-The status bar names the computer and agent you are using. Your original conversation stays alive on its original computer. Switching opens or returns to another conversation; it does not silently copy chat history.
+The status bar names the computer and agent you are using. Choosing a computer immediately shows its live agent chat in the **same terminal**, with no SSH commands or second terminal to open. Once visited, Mac → server → Mac → server returns to the same conversations and running processes. The menu never summarizes or sends context. The first visit starts a conversation if this Mesh group does not already have one there.
 
 These work too:
 
@@ -30,6 +30,26 @@ mesh sessions                # Saved groups
 ```
 
 An agent can run `mesh switch green-lighthouse` or `mesh back`. Its normal permissions still apply: remote Codex required permission to access the control socket during our test. The keyboard controls work directly through Mesh. After an SSH drop, select the destination again to reconnect its preserved remote session. After detaching, use the same agent/project with `--resume`.
+
+## Continue current work on another computer
+
+Context transfer is a separate action. Inside `mesh codex`, say:
+
+> Continue this task on green-lighthouse, taking the relevant context and files with you.
+
+Installed agent instructions explain how to check reachable computers, write a concise brief of the objective, decisions, constraints, completed work, and next steps, then run:
+
+```sh
+mesh handoff green-lighthouse --context BRIEF.md --input report-notes.txt
+```
+
+The brief and selected files arrive in `.mesh/handoffs/ID/` inside the destination workspace. An existing conversation keeps its workspace; a new one defaults to `~/.ai-mesh/projects/SESSION_ID`. `--project DIR` chooses a different workspace; `--input` can be repeated. Existing project files are not replaced.
+
+Mesh changes the visible terminal automatically and leaves the source agent alive. A new destination agent starts with a prompt to read its inbox and continue. An already-running destination keeps its conversation and reads new context **at its next user turn**; Mesh does not interrupt it or type into a busy prompt. Use the menu or `mesh back` to revisit either conversation without another transfer.
+
+Agents inspect their identity with `mesh session`, read pending context with `mesh inbox --read`, then acknowledge it with `mesh inbox ack ID`. Acknowledgment writes `READ.json` beside the brief, requiring only normal workspace write access. An uncertain handoff reports an ID: retry the same command with `--id ID` to avoid duplication. Handoffs copy explicit summaries and selected files, not hidden model state or provider credentials. Files produced during an interactive handoff stay in its workspace; use `mesh run` below when automatic return delivery is needed.
+
+After upgrading, run `mesh integrate` on both computers and start a new Mesh terminal to load the new controller and instructions. Already-running conversations remain preserved, but older controllers do not acquire new commands in place. This feature controls the native CLI terminal; it does not replace a Codex desktop chat. Normal provider trust and approval prompts remain enabled. Process preservation requires the agent and its host to remain running; a reboot or explicitly exiting the agent is different from switching or detaching.
 
 ## Send a task and receive files here
 

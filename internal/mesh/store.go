@@ -236,7 +236,7 @@ func childEnv(extra map[string]string) []string {
 		if _, ok := extra[k]; ok {
 			continue
 		}
-		if k == "TMUX" || k == "TMUX_PANE" || k == "MESH_CONTROL_SOCKET" || k == "MESH_CONTROL_TOKEN" || k == "MESH_WINDOW" {
+		if k == "TMUX" || k == "TMUX_PANE" || k == "MESH_CONTROL_SOCKET" || k == "MESH_CONTROL_TOKEN" || k == "MESH_WINDOW" || k == "MESH_SESSION_ID" || k == "MESH_ACTIVE" || k == "MESH_MACHINE" || k == "MESH_AGENT" {
 			continue
 		}
 		out = append(out, kv)

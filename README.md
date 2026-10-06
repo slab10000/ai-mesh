@@ -14,6 +14,7 @@ This is the first working CLI implementation of the vision in [PROJECT.md](PROJE
 - Track execution and delivery separately. The local service retrieves finished results when the destination becomes reachable again.
 - Delegate child jobs with inherited placement, depth, and child-count limits. Each machine has a local execution limit.
 - Launch native agent terminals through Mesh, switch computers in the same terminal, and return to a preserved session.
+- Explicitly hand off a context brief and selected files to a Codex or Claude conversation while keeping the source agent alive.
 - Install removable instructions for detected Codex, Claude Code, and Gemini installations. Gemini and OpenCode also have interactive launchers; their background task adapters are not implemented.
 
 No computer has a permanent coordinator role. A submitting computer retains its own job receipts; other peers can work together without it after mutual enrollment has completed.
@@ -188,7 +189,20 @@ Press **Ctrl-b, release, then m** for the computer menu, or **Ctrl-b, release, t
 
 The current terminal session is preserved in tmux. Mesh switches the active window, keeping a machine/agent label visible. `Ctrl-b d` detaches the local terminal without stopping the sessions. After an SSH connection drops, selecting the same destination reconnects its preserved remote session. `--resume` reattaches a matching live Mesh session; if none exists, Codex/Claude use their native resume picker.
 
-Switching starts or returns to a destination session. It does **not** migrate the previous conversation. Use `--context` and selected files for an explicit handoff. Agent-specific `/SelectComputer` slash commands are not installed in this version; `mesh connect` provides the terminal picker and the installed instructions support natural-language switching.
+Ctrl-b m and `mesh switch` immediately show the destination chat in that same terminal. Revisiting a computer restores its live conversation without summarizing or sending context. The first visit creates a conversation if none exists in this Mesh group. Agent-specific `/SelectComputer` slash commands are not installed in this version; `mesh connect` provides the terminal picker and the installed instructions support natural-language switching.
+
+Context transfer is a separate command:
+
+```sh
+mesh handoff homelab --context BRIEF.md --input selected-file.txt
+mesh session
+mesh inbox --read
+mesh inbox ack HANDOFF_ID
+```
+
+Installation adds instructions for an agent to prepare the brief and invoke `mesh handoff` when asked to continue current work on another computer. The terminal changes automatically. A new conversation receives a startup prompt; an existing agent remains alive and reads the new brief on its next user turn. The brief and selected files live under `.mesh/handoffs/ID/` in its workspace, with a workspace-local acknowledgment marker. New conversations default to `~/.ai-mesh/projects/SESSION_ID`; `--project DIR` selects another workspace. Use the reported `--id ID` to retry an uncertain handoff without duplication. No hidden model state or provider credentials are copied.
+
+After upgrading, run `mesh integrate` on both computers and start a new Mesh terminal for the new controller and instructions. Existing native agents remain running; their previous controllers are not replaced in place. These commands control CLI terminals, not desktop application chats.
 
 Remote switch requests return through a Unix socket forwarded over the existing SSH connection. This needs SSH stream-local forwarding enabled on the destination. It works even when the originating laptop declines incoming SSH access. Interactive tmux sessions survive ordinary client disconnection; a host reboot requires native agent resume rather than restoring a running process.
 
@@ -237,6 +251,9 @@ State lives under `~/.ai-mesh`:
 | `receipts/` | Outgoing tasks, original requests for retry, and local delivery destinations |
 | `pending/` | Authorized membership changes awaiting confirmation |
 | `sessions/`, `logs/` | Terminal metadata and service/controller logs |
+| `runtime/`, `handoffs/` | Live conversation identity and immutable handoff delivery receipts |
+
+Context, selected files, and `READ.json` consumption markers live in the destination project's `.mesh/handoffs/ID/` directory. Acknowledgment does not need permission to modify global Mesh state.
 
 Private keys remain local. Task briefs and files are copied only as part of the requested handoff. Raw logs and receipts may contain task content; this version does not implement automatic retention or cleanup. Finished results remain on the executing computer after delivery.
 

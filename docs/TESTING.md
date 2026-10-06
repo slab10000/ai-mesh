@@ -125,7 +125,19 @@ You can start directly on the server with `mesh claude green-lighthouse`, choose
 
 This test needs tmux on both sides and SSH Unix-socket forwarding. An agent sandbox may require permission to call the Mesh controller socket. A normal terminal outside the Mesh-launched session lacks that session's controller environment and cannot issue its switch commands. Switching does not transfer the conversation automatically.
 
-## 9. Inspect and remove setup changes
+## 9. Separate navigation from context transfer
+
+Upgrade both Mesh binaries, run `mesh integrate` on both, and start a new `mesh codex` terminal. Existing sessions are left running; their old controller does not gain new commands during an upgrade.
+
+1. Tell the Mac agent to remember a unique marker and a decision, without transferring them.
+2. Press Ctrl-b, release, then m. Choose the server. Give that conversation a different marker.
+3. Use the menu to return to the Mac, then revisit the server. Each must recall its own marker and show its earlier conversation. Both `mesh session` process IDs must remain unchanged. The handoff inbox must remain empty.
+4. Ask the Mac agent to continue the task on the server, explicitly taking its context and a selected test file. It should prepare a brief and invoke `mesh handoff`, and the terminal should change automatically. An existing server conversation consumes the new inbox entry at its next user turn; a newly started one receives a startup prompt immediately.
+5. Verify the destination sees the decision and exact selected file bytes. Revisit the Mac with the menu: its original conversation must still be there. Revisit the server: its updated conversation must still be there.
+
+The isolated race tests additionally simulate an offline destination, a lost reply after staging, and retries with the same ID. They verify file boundaries, conversation-scoped inbox acknowledgment, unchanged process IDs across navigation, continuing background execution, and controller authentication. Run `go test -race ./internal/mesh -run TestHandoff` to repeat those checks without contacting a real server or provider.
+
+## 10. Inspect and remove setup changes
 
 Useful diagnostics:
 

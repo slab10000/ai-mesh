@@ -65,6 +65,8 @@ A proposed command such as `/computer homelab` or `/SelectComputer` could expres
 
 Mesh preserves the current session and changes the connection in the same terminal window to an agent session on the selected computer. The user does not have to open another terminal or manually run SSH.
 
+The computer menu only changes which live conversation is visible. Returning to a previously visited computer shows the exact conversation that was left there, with its agent still running. Switching must not summarize the conversation or transfer context. Carrying current work to another computer is a separate handoff action that an agent can invoke through the CLI when the user requests it.
+
 Later, the user says:
 
 > Take me back to my Mac.

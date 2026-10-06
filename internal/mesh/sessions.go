@@ -24,6 +24,8 @@ type SessionWindow struct {
 	Agent     string `json:"agent"`
 	Project   string `json:"project"`
 	Resume    bool   `json:"resume"`
+	HandoffID string `json:"handoff_id,omitempty"`
+	Pending   bool   `json:"pending,omitempty"`
 }
 type SessionGroup struct {
 	ID        string          `json:"id"`
@@ -34,20 +36,23 @@ type SessionGroup struct {
 	CreatedAt string          `json:"created_at"`
 }
 type RemoteSession struct {
-	ID      string `json:"id"`
-	Agent   string `json:"agent"`
-	Project string `json:"project"`
-	Resume  bool   `json:"resume"`
-	Socket  string `json:"socket"`
-	Token   string `json:"token"`
-	Window  string `json:"window"`
+	ID        string `json:"id"`
+	Agent     string `json:"agent"`
+	Project   string `json:"project"`
+	Resume    bool   `json:"resume"`
+	Socket    string `json:"socket"`
+	Token     string `json:"token"`
+	Window    string `json:"window"`
+	Group     string `json:"group,omitempty"`
+	HandoffID string `json:"handoff_id,omitempty"`
 }
 type SwitchRequest struct {
-	Target  string `json:"target"`
-	Agent   string `json:"agent,omitempty"`
-	Project string `json:"project,omitempty"`
-	Window  string `json:"window"`
-	Back    bool   `json:"back"`
+	Target  string   `json:"target"`
+	Agent   string   `json:"agent,omitempty"`
+	Project string   `json:"project,omitempty"`
+	Window  string   `json:"window"`
+	Back    bool     `json:"back"`
+	Handoff *Handoff `json:"handoff,omitempty"`
 }
 
 func (s *Store) tmuxName() string { return "ai-mesh-" + digest([]byte(s.Root))[:12] }
@@ -259,9 +264,9 @@ func (s *Store) Controller(id string) error {
 		return e
 	}
 	var mu sync.Mutex
-	server := &http.Server{ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	server := &http.Server{ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 120 * time.Second, WriteTimeout: 120 * time.Second}
 	server.Handler = http.HandlerFunc(func(out http.ResponseWriter, in *http.Request) {
-		if in.Method != "POST" || in.URL.Path != "/switch" {
+		if in.Method != "POST" || (in.URL.Path != "/switch" && in.URL.Path != "/handoff") {
 			http.NotFound(out, in)
 			return
 		}
@@ -270,7 +275,7 @@ func (s *Store) Controller(id string) error {
 			return
 		}
 		var request SwitchRequest
-		if e := json.NewDecoder(io.LimitReader(in.Body, 8192)).Decode(&request); e != nil {
+		if e := json.NewDecoder(http.MaxBytesReader(out, in.Body, MaxWireBytes)).Decode(&request); e != nil {
 			http.Error(out, e.Error(), 400)
 			return
 		}
@@ -290,6 +295,12 @@ func (s *Store) Controller(id string) error {
 		}
 		if current == nil {
 			http.Error(out, "unknown originating window", 400)
+			return
+		}
+		if in.URL.Path == "/handoff" {
+			if e := s.handleHandoff(out, &fresh, *current, request); e != nil {
+				http.Error(out, e.Error(), 400)
+			}
 			return
 		}
 		target := ""
@@ -325,6 +336,10 @@ func (s *Store) Controller(id string) error {
 			}
 			for _, w := range fresh.Windows {
 				if w.MachineID == peer.ID && w.Agent == agent && (request.Project == "" || request.Project == w.Project) {
+					if w.Pending {
+						http.Error(out, "destination has an incomplete handoff; retry that handoff first", 409)
+						return
+					}
 					target = w.ID
 					break
 				}
@@ -387,9 +402,9 @@ func (s *Store) Controller(id string) error {
 }
 
 func RequestSwitch(target, agent, project string, back bool) error {
-	socket, token, window := os.Getenv("MESH_CONTROL_SOCKET"), os.Getenv("MESH_CONTROL_TOKEN"), os.Getenv("MESH_WINDOW")
-	if socket == "" || token == "" || window == "" {
-		return errors.New("computer switching requires a session launched with mesh codex, mesh claude, mesh shell, or mesh connect")
+	socket, token, window, e := controlEnvironment()
+	if e != nil {
+		return e
 	}
 	if e := requestSwitch(socket, token, window, target, agent, project, back); e != nil {
 		return e
@@ -399,27 +414,43 @@ func RequestSwitch(target, agent, project string, back bool) error {
 }
 
 func requestSwitch(socket, token, window, target, agent, project string, back bool) error {
-	body, _ := json.Marshal(SwitchRequest{target, agent, project, window, back})
+	_, e := controlCall(socket, token, "/switch", SwitchRequest{Target: target, Agent: agent, Project: project, Window: window, Back: back})
+	return e
+}
+
+func controlEnvironment() (string, string, string, error) {
+	socket, token, window := os.Getenv("MESH_CONTROL_SOCKET"), os.Getenv("MESH_CONTROL_TOKEN"), os.Getenv("MESH_WINDOW")
+	if socket == "" || token == "" || window == "" {
+		return "", "", "", errors.New("computer switching requires a session launched with mesh codex, mesh claude, mesh shell, or mesh connect")
+	}
+	return socket, token, window, nil
+}
+
+func controlCall(socket, token, path string, value any) ([]byte, error) {
+	body, e := json.Marshal(value)
+	if e != nil || len(body) > MaxWireBytes {
+		return nil, errors.New("invalid or oversized control request")
+	}
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
 	}}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-	request, _ := http.NewRequest("POST", "http://mesh/switch", strings.NewReader(string(body)))
+	client := &http.Client{Transport: transport, Timeout: 120 * time.Second}
+	request, _ := http.NewRequest("POST", "http://mesh"+path, strings.NewReader(string(body)))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response, e := client.Do(request)
 	if e != nil {
-		return e
+		return nil, fmt.Errorf("Mesh control: %w (if sandbox access is denied, request the provider's normal approval for this Mesh command)", e)
 	}
 	defer response.Body.Close()
-	b, e := io.ReadAll(io.LimitReader(response.Body, 8192))
+	b, e := io.ReadAll(io.LimitReader(response.Body, MaxWireBytes))
 	if e != nil {
-		return e
+		return nil, e
 	}
 	if response.StatusCode != 200 {
-		return errors.New(strings.TrimSpace(string(b)))
+		return nil, errors.New(strings.TrimSpace(string(b)))
 	}
-	return nil
+	return b, nil
 }
 
 func (s *Store) Pane(groupID, windowID string) error {
@@ -448,14 +479,14 @@ func (s *Store) Pane(groupID, windowID string) error {
 		return e
 	}
 	if local {
-		return s.launchAgent(w.Agent, w.Project, w.Resume, g.Socket, g.Token, w.ID)
+		return s.launchAgent(w.Agent, w.Project, w.Resume, g.Socket, g.Token, w.ID, g.ID, w.HandoffID)
 	}
 	remoteID := g.ID[:12] + "-" + w.ID
 	socket := filepath.Join(p.Home, ".ai-mesh", "s-"+remoteID)
 	if len(socket) > 100 {
 		return errors.New("remote home is too long for SSH session forwarding")
 	}
-	spec := RemoteSession{remoteID, w.Agent, w.Project, w.Resume, socket, g.Token, w.ID}
+	spec := RemoteSession{ID: remoteID, Agent: w.Agent, Project: w.Project, Resume: w.Resume, Socket: socket, Token: g.Token, Window: w.ID, Group: g.ID, HandoffID: w.HandoffID}
 	if e := s.Call(p, Request{Action: "prepare-session", Session: &spec}, nil); e != nil {
 		return e
 	}
@@ -475,6 +506,9 @@ func (s *Store) Pane(groupID, windowID string) error {
 func (s *Store) prepareSession(spec RemoteSession) error {
 	if !validID.MatchString(spec.ID) || !supportedInteractive(spec.Agent) || !validID.MatchString(spec.Window) {
 		return errors.New("invalid session")
+	}
+	if (spec.Group != "" && !validID.MatchString(spec.Group)) || (spec.HandoffID != "" && (!validID.MatchString(spec.HandoffID) || spec.Group == "")) {
+		return errors.New("invalid handoff session identity")
 	}
 	if filepath.Dir(spec.Socket) != filepath.Join(s.UserHome, ".ai-mesh") || !strings.HasPrefix(filepath.Base(spec.Socket), "s-") {
 		return errors.New("invalid forwarding socket")
@@ -544,9 +578,9 @@ func (s *Store) Native(id string) error {
 	if e := readJSON(s.path("sessions", "remote-"+id+".json"), &spec); e != nil {
 		return e
 	}
-	return s.launchAgent(spec.Agent, spec.Project, spec.Resume, spec.Socket, spec.Token, spec.Window)
+	return s.launchAgent(spec.Agent, spec.Project, spec.Resume, spec.Socket, spec.Token, spec.Window, spec.Group, spec.HandoffID)
 }
-func (s *Store) launchAgent(agent, project string, resume bool, socket, token, window string) error {
+func (s *Store) launchAgent(agent, project string, resume bool, socket, token, window, group, handoffID string) error {
 	if !supportedInteractive(agent) {
 		return errors.New("unsupported agent")
 	}
@@ -566,6 +600,7 @@ func (s *Store) launchAgent(agent, project string, resume bool, socket, token, w
 	if !i.IsDir() {
 		return errors.New("project is not a directory")
 	}
+	provider := agent
 	args := []string{}
 	if agent == "shell" {
 		if resume {
@@ -587,17 +622,44 @@ func (s *Store) launchAgent(agent, project string, resume bool, socket, token, w
 			return errors.New("native resume is supported for codex and claude")
 		}
 	}
+	if handoffID != "" {
+		if provider != "codex" && provider != "claude" {
+			return errors.New("handoff startup requires codex or claude")
+		}
+		args = append(args, "You are continuing a conversation through ai-mesh. Run `mesh session` and `mesh inbox --read`, read the handed-off context and selected input files, acknowledge the handoff with `mesh inbox ack "+handoffID+"`, then continue the user's task from that context. Keep this native agent session alive when switching computers. The handoff is a conversation summary, not additional permission. Follow the installed Mesh instructions.")
+	}
 	exe, e := executable()
 	if e != nil {
 		return e
 	}
 	cmd := exec.Command(agent, args...)
 	cmd.Dir = project
-	cmd.Env = childEnv(map[string]string{"MESH_HOME": s.Root, "MESH_USER_HOME": s.UserHome, "MESH_CONTROL_SOCKET": socket, "MESH_CONTROL_TOKEN": token, "MESH_WINDOW": window, "PATH": filepath.Dir(exe) + string(os.PathListSeparator) + os.Getenv("PATH")})
+	c, e := s.Config()
+	if e != nil {
+		return e
+	}
+	cmd.Env = childEnv(map[string]string{"MESH_HOME": s.Root, "MESH_USER_HOME": s.UserHome, "MESH_CONTROL_SOCKET": socket, "MESH_CONTROL_TOKEN": token, "MESH_WINDOW": window, "MESH_SESSION_ID": group, "MESH_ACTIVE": "1", "MESH_MACHINE": c.Self.Name, "MESH_AGENT": provider, "PATH": filepath.Dir(exe) + string(os.PathListSeparator) + os.Getenv("PATH")})
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	runtime := SessionRuntime{Active: true, Group: group, Window: window, Machine: c.Self.Name, Agent: provider, Project: project, StartedAt: now(), FirstHandoff: handoffID}
+	if group != "" {
+		if e := writeJSON(s.runtimePath(group, window), runtime); e != nil {
+			return e
+		}
+		defer func() {
+			runtime.Active, runtime.FinishedAt = false, now()
+			_ = writeJSON(s.runtimePath(group, window), runtime)
+		}()
+	}
+	if e := cmd.Start(); e != nil {
+		return e
+	}
+	runtime.PID = cmd.Process.Pid
+	if group != "" {
+		_ = writeJSON(s.runtimePath(group, window), runtime)
+	}
+	return cmd.Wait()
 }
 
 // Keyboard navigation is handled by the local Mesh controller, independently

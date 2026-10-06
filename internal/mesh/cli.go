@@ -56,6 +56,11 @@ Interactive sessions (tmux required on each participating machine)
   mesh codex|claude|gemini|opencode|shell [MACHINE] [--project DIR] [--resume]
   mesh connect                              Choose a machine and an installed agent
   mesh switch MACHINE [--agent AGENT] [--project DIR]
+  mesh handoff MACHINE --context FILE [--input PATH] [--project DIR] [--id ID]
+                                            Continue with a brief; preserve live sessions
+  mesh session                              This agent's Mesh identity (no credentials)
+  mesh inbox [--read]                        Pending context for this conversation
+  mesh inbox ack ID                         Mark a handoff consumed after reading it
   mesh back                                 Return to the preserved previous session
   mesh sessions                             List saved session groups
   Ctrl-b m / Ctrl-b b                        Computer menu / return (inside Mesh)
@@ -393,6 +398,36 @@ func Main(args []string) error {
 		return RequestSwitch(args[0], *agent, *project, false)
 	case "back":
 		return RequestSwitch("", "", "", true)
+	case "handoff":
+		return s.HandoffCLI(args)
+	case "session":
+		f := flags("session")
+		_ = f.Bool("json", true, "JSON output")
+		if e := f.Parse(args); e != nil {
+			return e
+		}
+		runtime, e := s.CurrentSession()
+		if e != nil {
+			return e
+		}
+		return printJSON(runtime)
+	case "inbox":
+		if len(args) > 0 && args[0] == "ack" {
+			if e := need(args, 2, "mesh inbox ack ID"); e != nil {
+				return e
+			}
+			return s.AcknowledgeHandoff(args[1])
+		}
+		f := flags("inbox")
+		read := f.Bool("read", false, "include the context text without marking it consumed")
+		if e := f.Parse(args); e != nil {
+			return e
+		}
+		rows, e := s.Inbox(*read)
+		if e != nil {
+			return e
+		}
+		return printJSON(rows)
 	case "sessions":
 		entries, e := os.ReadDir(s.path("sessions"))
 		if e != nil {

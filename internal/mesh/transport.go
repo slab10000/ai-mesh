@@ -35,6 +35,7 @@ type Request struct {
 	RemoveIDs []string       `json:"remove_ids,omitempty"`
 	Offset    int64          `json:"offset,omitempty"`
 	Session   *RemoteSession `json:"session,omitempty"`
+	Handoff   *Handoff       `json:"handoff,omitempty"`
 }
 type Response struct {
 	Protocol  int             `json:"protocol"`
@@ -150,6 +151,11 @@ func (s *Store) Handle(r Request) (any, error) {
 		return nil, errors.New("this machine does not accept incoming Mesh requests")
 	}
 	switch r.Action {
+	case "handoff":
+		if r.Handoff == nil {
+			return nil, errors.New("missing conversation handoff")
+		}
+		return s.StageHandoff(*r.Handoff)
 	case "prepare-session":
 		if r.Session == nil {
 			return nil, errors.New("missing session")
