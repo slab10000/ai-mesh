@@ -165,7 +165,7 @@ The user should not have to maintain the directory manually. Agents contribute u
 
 ### Files are shared and kept current
 
-Each computer publishes its own machine description, and the other computers keep copies. An update is propagated to peers; disconnected computers catch up when they reconnect.
+Each computer publishes its own machine description during initial enrollment, and the other computers keep copies. After that, descriptions are shared only when their contents change. Idle computers should not repeatedly exchange unchanged specs on a timer. Pending updates reach disconnected computers when they reconnect.
 
 The desired result is a shared view that converges as machines communicate. Cached information remains useful while a peer is offline, but must not be presented as a guaranteed live reading. Before dispatching work, Mesh checks that the destination can actually accept it.
 

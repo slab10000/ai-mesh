@@ -157,13 +157,18 @@ func (s *Store) Handle(r Request) (any, error) {
 		return nil, s.prepareSession(*r.Session)
 	case "info":
 		return s.Info()
-	case "sync":
+	case "inventory", "sync":
 		if r.Inventory == nil {
 			return nil, errors.New("missing inventory")
 		}
 		if e := s.CacheInventory(r.Inventory.ID, *r.Inventory); e != nil {
 			return nil, e
 		}
+		if r.Action == "inventory" {
+			return nil, nil
+		}
+		// Older peers used a bidirectional exchange. New publishers receive
+		// only an acknowledgment, never an unchanged copy of our inventory.
 		return s.OwnInventory()
 	case "roster":
 		for _, id := range r.RejoinIDs {

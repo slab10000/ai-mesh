@@ -1,0 +1,35 @@
+{
+  "tested_at": "2026-10-06T17:36:54.160275+00:00",
+  "results": [
+    {
+      "name": "direct Mac file edit published",
+      "status": "pass",
+      "seconds": 0.742
+    },
+    {
+      "name": "direct server file edit published",
+      "status": "pass",
+      "seconds": 0.42
+    },
+    {
+      "name": "test capability removals propagated",
+      "status": "pass"
+    },
+    {
+      "name": "idle maintenance ticks exchange no specs",
+      "status": "pass",
+      "seconds": 65
+    },
+    {
+      "name": "service restarts retain inventory acknowledgments",
+      "status": "pass"
+    }
+  ],
+  "status": "pass",
+  "verification": {
+    "go_vet": "pass",
+    "full_go_race_suite": "pass",
+    "command_acceptance": "13/13 pass",
+    "command_report": "20261006T173611Z"
+  }
+}

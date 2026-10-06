@@ -2,7 +2,7 @@
 
 Use your existing AI agents across the computers you can access through SSH. Keep the conversation on your laptop, send work and files to another computer, follow its progress, and retrieve the results.
 
-This is the first working CLI implementation of the vision in [PROJECT.md](PROJECT.md). The repository remains private. Real Mac-to-green-lighthouse validation, screenshots, and known limitations are recorded in [VALIDATION.md](docs/VALIDATION.md); start with the [short usage guide](docs/QUICKSTART.md). It uses a single Go executable, OpenSSH, ordinary files, and tmux for interactive sessions. There are no Go library dependencies, hosted Mesh account, or MCP server.
+This is the first working CLI implementation of the vision in [PROJECT.md](PROJECT.md). The repository remains private. Real Mac-to-green-lighthouse validation, screenshots, and known limitations are recorded in [VALIDATION.md](docs/VALIDATION.md); start with the [short usage guide](docs/QUICKSTART.md). It uses a single Go executable, OpenSSH, ordinary files, and tmux for interactive sessions. Native file notifications use [fsnotify](https://github.com/fsnotify/fsnotify). There is no hosted Mesh account or MCP server.
 
 ## What works
 
@@ -208,7 +208,9 @@ Initial collection records OS, architecture, CPU, RAM, NVIDIA GPU information wh
 
 `machines --check --json` adds a live connection check, Mesh workload counts, concurrency capacity, free space on the Mesh filesystem, and last contact. Plain `machines` uses cached descriptions. A recorded capability is an observation, not permission to use the resource.
 
-Each computer writes only its own inventory file. Concurrent local updates are locked and revisions prevent older peer copies from replacing newer ones. The service exchanges inventories every 30 seconds; `mesh sync` requests an immediate exchange. There is no LLM merge worker. Membership, credentials, and user permissions are not inferred from inventory notes.
+Each computer writes only its own inventory file. Concurrent local updates are locked and revisions prevent older peer copies from replacing newer ones. Descriptions are published during enrollment and whenever the local description changes. The service watches the file and sends updates only to peers that have not acknowledged that version. It does not exchange unchanged specs on a timer. Offline deliveries are retried by the existing maintenance loop; durable acknowledgments avoid resending on restart. `mesh sync` flushes pending publications immediately. There is no LLM merge worker. Membership, credentials, and user permissions are not inferred from inventory notes.
+
+Mesh CLI updates publish immediately, including without a running service. With the service running, valid direct edits and atomic editor saves are detected too; Mesh advances the revision when needed. Peers that decline incoming connections receive no automatic pushes; they can retrieve current peer descriptions explicitly with `mesh machines --check`.
 
 Different capability keys are preserved independently. For the same name and environment, the last completed local update replaces the earlier note.
 
@@ -230,6 +232,7 @@ State lives under `~/.ai-mesh`:
 | --- | --- |
 | `config.json`, `keys/`, `known_hosts` | Local identity, peers, this machine's private key, peer host keys |
 | `machines/`, `contacts/` | Versioned descriptions and last successful contact |
+| `inventory-sync.json` | Last local revision and per-peer publication acknowledgments |
 | `jobs/ID/` | Task state, workspace, inputs, outputs, and raw logs |
 | `receipts/` | Outgoing tasks, original requests for retry, and local delivery destinations |
 | `pending/` | Authorized membership changes awaiting confirmation |

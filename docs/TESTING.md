@@ -141,3 +141,17 @@ Task events and worker errors are under `~/.ai-mesh/jobs/JOB_ID/` on the executi
 To remove the integration and service from an account, run `mesh integrate --remove` and `mesh service uninstall` on that account. Use `mesh peers remove green-lighthouse` from the Mac while both sides are reachable to revoke the Mesh relationship. Stop unwanted jobs separately. Keep state until pending deliveries and revocations have been checked; uninstalling a service does not erase results or revoke SSH keys by itself.
 
 When reporting a problem, include the command, Mesh version, relevant OS/architecture, job ID, and the relevant error. Review logs before sharing them because they can contain task inputs and provider output.
+
+## Change-driven inventory sharing
+
+After initial enrollment, a computer publishes its description only when it changes or a newly enrolled peer needs its first copy. `mesh sync` flushes pending publications; repeated calls with no changes should make no inventory SSH requests. The maintenance timer retries missed deliveries and handles jobs.
+
+The race-enabled tests exercise idle ticks, persistent acknowledgments, offline peers, lost acknowledgments, direct edits without revision changes, atomic saves, new/re-enrolled peers, and publication before a one-hour maintenance tick.
+
+For a real Mac/server check:
+
+```sh
+python3 scripts/e2e_inventory.py --ssh blas@green-lighthouse
+```
+
+This writes and removes uniquely named temporary capability entries directly in each computer's own description, verifies automatic publication in both directions, observes 65 seconds of idle maintenance, and restarts both installed Mesh services to check that unchanged descriptions are not resent. It does not change membership or SSH keys. The JSON report is written to `artifacts/e2e/inventory-events.json`.

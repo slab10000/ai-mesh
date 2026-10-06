@@ -288,32 +288,6 @@ func (s *Store) Machines(check bool) ([]MachineView, error) {
 	return views, nil
 }
 
-func (s *Store) Sync() []string {
-	c, e := s.Config()
-	if e != nil {
-		return []string{e.Error()}
-	}
-	own, e := s.OwnInventory()
-	if e != nil {
-		return []string{e.Error()}
-	}
-	var issues []string
-	for _, p := range c.Peers {
-		if !p.Incoming {
-			continue
-		}
-		var reply Inventory
-		if e := s.Call(p, Request{Action: "sync", Inventory: &own}, &reply); e != nil {
-			issues = append(issues, p.Name+": "+e.Error())
-			continue
-		}
-		if e := s.CacheInventory(p.ID, reply); e != nil {
-			issues = append(issues, p.Name+": "+e.Error())
-		}
-	}
-	return issues
-}
-
 func agentPaths(home string) map[string]string {
 	codexHome := os.Getenv("CODEX_HOME")
 	if codexHome == "" {

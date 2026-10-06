@@ -38,7 +38,7 @@ Inventory
   mesh machine refresh                      Refresh this machine's basic facts
   mesh capability add NAME [--environment ENV] [--note TEXT]
   mesh capability remove NAME [--environment ENV]
-  mesh sync                                 Exchange owner-published inventories
+  mesh sync                                 Publish pending description updates
 
 Tasks
   mesh run --on NAME --agent codex|claude --input PATH --context FILE
@@ -50,7 +50,7 @@ Tasks
   mesh collect ID [--output DIR]            Verify and retrieve deliverables
   mesh retry ID                             Retry the same submission (idempotent)
   mesh cancel ID                            Cancel the named job, not its children
-  mesh daemon [--once] [--interval 30s]      Sync and collect when peers reconnect
+  mesh daemon [--once] [--interval 30s]      Retry pending updates and collect results
 
 Interactive sessions (tmux required on each participating machine)
   mesh codex|claude|gemini|opencode|shell [MACHINE] [--project DIR] [--resume]
@@ -250,6 +250,9 @@ func Main(args []string) error {
 			if e != nil {
 				return e
 			}
+			for _, issue := range s.Sync() {
+				fmt.Fprintln(os.Stderr, "Inventory saved; delivery pending:", issue)
+			}
 			return printJSON(i)
 		}
 		if args[0] == "show" {
@@ -284,7 +287,13 @@ func Main(args []string) error {
 		if e := f.Parse(args[2:]); e != nil {
 			return e
 		}
-		return s.Capability(args[1], *environment, *note, args[0] == "remove")
+		if e := s.Capability(args[1], *environment, *note, args[0] == "remove"); e != nil {
+			return e
+		}
+		for _, issue := range s.Sync() {
+			fmt.Fprintln(os.Stderr, "Inventory saved; delivery pending:", issue)
+		}
+		return nil
 	case "sync":
 		issues := s.Sync()
 		if len(issues) > 0 {

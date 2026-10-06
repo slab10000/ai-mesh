@@ -117,6 +117,12 @@ mapping = json.load(open(os.environ['MESH_TEST_PEERS']))
 if '-O' in sys.argv:
     sys.exit(0)
 host, command = sys.argv[-2:]
+payload = None
+if command.startswith('exec ') and '_rpc' in command:
+    payload = sys.stdin.buffer.read()
+    if os.environ.get('MESH_TEST_SSH_LOG'):
+        with open(os.environ['MESH_TEST_SSH_LOG'], 'a') as log:
+            log.write(json.dumps({'host': host, 'action': json.loads(payload)['action']}) + '\n')
 if host not in mapping:
     sys.stderr.write('fixture endpoint is offline\n')
     sys.exit(255)
@@ -144,7 +150,7 @@ env['MESH_HOME'] = peer['root']
 env['MESH_USER_HOME'] = peer['home']
 env['SSH_CONNECTION'] = '127.0.0.1 40000 127.0.0.1 22'
 env.pop('MESH_JOB_ID', None)
-result = subprocess.run(command, shell=True, env=env, stdout=subprocess.PIPE)
+result = subprocess.run(command, shell=True, env=env, input=payload, stdout=subprocess.PIPE)
 drop = os.path.join(peer['root'], 'drop-reply')
 if os.path.exists(drop):
     os.unlink(drop)

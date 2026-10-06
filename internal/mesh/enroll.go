@@ -241,7 +241,7 @@ func (s *Store) RemovePeer(id string) error {
 	if !validID.MatchString(id) {
 		return errors.New("invalid peer ID")
 	}
-	return withLock(s.path("config.lock"), func() error {
+	err := withLock(s.path("config.lock"), func() error {
 		c, e := s.Config()
 		if e != nil {
 			return e
@@ -260,6 +260,10 @@ func (s *Store) RemovePeer(id string) error {
 		}
 		return writeJSON(s.path("config.json"), c)
 	})
+	if err != nil {
+		return err
+	}
+	return s.forgetInventoryDelivery(id)
 }
 
 type EnrollOptions struct {
@@ -413,6 +417,8 @@ func (s *Store) Enroll(o EnrollOptions) (Peer, error) {
 	if o.Mutual {
 		issues = append(issues, s.reconcilePeers(p.ID)...)
 	}
+	// Bootstrap the destination's copy immediately, even without a service.
+	issues = append(issues, s.Sync()...)
 	if len(issues) > 0 {
 		return p, fmt.Errorf("enrolled; some configuration needs attention: %s", strings.Join(issues, "; "))
 	}

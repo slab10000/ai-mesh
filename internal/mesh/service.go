@@ -241,7 +241,14 @@ func (s *Store) Daemon(interval time.Duration, once bool) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	var changes <-chan struct{}
 	if !once {
+		var closeWatcher func()
+		changes, closeWatcher, e = s.inventoryChanges(ctx)
+		if e != nil {
+			return fmt.Errorf("watch machine description: %w", e)
+		}
+		defer closeWatcher()
 		listener, err := s.jobListener()
 		if err != nil {
 			// An unusually long custom MESH_HOME may exceed the platform's Unix
@@ -252,19 +259,29 @@ func (s *Store) Daemon(interval time.Duration, once bool) error {
 			defer listener.Close()
 		}
 	}
-	for {
+	tick := func() {
 		issues := s.Tick()
 		for _, issue := range issues {
 			fmt.Fprintln(os.Stderr, now(), issue)
 		}
 		_ = writeJSON(s.path("daemon-status.json"), map[string]any{"pid": os.Getpid(), "last_tick": now(), "issues": issues})
-		if once {
-			return nil
-		}
+	}
+	tick()
+	if once {
+		return nil
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(interval):
+		case <-changes:
+			for _, issue := range s.Sync() {
+				fmt.Fprintln(os.Stderr, now(), "inventory update:", issue)
+			}
+		case <-ticker.C:
+			tick() // Job delivery and retries of unacknowledged inventory only.
 		}
 	}
 }

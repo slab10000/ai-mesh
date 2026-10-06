@@ -68,7 +68,7 @@ mesh run --on green-lighthouse --agent shell --output ./results/host --wait -- \
 
 ## How the pieces fit
 
-Each account has its own Mesh identity, SSH key, job records, and machine description under `~/.ai-mesh`. OpenSSH carries commands, files, status, and logs. The service synchronizes descriptions and collects results. tmux preserves live terminal sessions. No permanent master computer or hosted Mesh account is involved.
+Each account has its own Mesh identity, SSH key, job records, and machine description under `~/.ai-mesh`. OpenSSH carries commands, files, status, and logs. The service publishes descriptions once at enrollment and then when their file changes, and collects task results. It does not repeatedly exchange unchanged specs. Pending description updates are retried when a peer is reachable again. tmux preserves live terminal sessions. No permanent master computer or hosted Mesh account is involved.
 
 Every machine writes its own description. Agents can record verified reusable capabilities with `mesh capability add`; updates propagate to peers. The computer running a task can submit child tasks to another enrolled computer, subject to placement/delegation limits. The agent or script coordinates these children; automatic GPU scheduling is not implemented.
 

@@ -86,3 +86,19 @@ The original returned [PDF](evidence/remote-report.pdf), [generator](evidence/ge
 - Test jobs/results and preserved tmux sessions remain available for inspection. Generated live-test files are in the ignored `artifacts/e2e/` directory and each computer's Mesh job store. No provider credentials are included in the evidence.
 
 Start with the [short usage guide](QUICKSTART.md), or follow the longer [manual checklist](TESTING.md).
+
+## Inventory publication follow-up — October 6, 2026
+
+Inventory sharing now runs at enrollment and on description changes. The background file watcher handles direct edits and atomic saves; the maintenance loop retries only unacknowledged updates. An unchanged description causes no inventory RPCs. Durable per-peer acknowledgments survive service restarts.
+
+Verified on the installed Mac and green-lighthouse builds:
+
+- A direct Mac file edit reached the server in 0.742 seconds.
+- A direct server file edit reached the Mac in 0.420 seconds.
+- Removing the temporary test capabilities propagated in both directions.
+- During 65 seconds with both services ticking, neither computer received another inventory copy.
+- Restarting both services preserved acknowledgments and did not resend specs.
+
+The 13 command acceptance scenarios passed again. `go vet` and the full race-enabled Go suite passed, including offline retry, lost acknowledgments, atomic saves, direct-edit revision normalization, new/re-enrolled peers, and concurrent CLI/service publication. Provider inference and terminal screenshots above are from the October 5 validation; those were not repeated for this inventory-only change.
+
+The [recorded results](evidence/inventory-events.json) and `scripts/e2e_inventory.py` make this check reproducible. The test changed only uniquely named temporary capability notes and removed them afterward.
