@@ -167,3 +167,15 @@ python3 scripts/e2e_inventory.py --ssh blas@green-lighthouse
 ```
 
 This writes and removes uniquely named temporary capability entries directly in each computer's own description, verifies automatic publication in both directions, observes 65 seconds of idle maintenance, and restarts both installed Mesh services to check that unchanged descriptions are not resent. It does not change membership or SSH keys. The JSON report is written to `artifacts/e2e/inventory-events.json`.
+
+
+## 10. Verify a visible handoff with multiple live sessions
+
+1. Keep an older Mesh conversation alive, then open a second `mesh codex` session. The second session must be the terminal you are using.
+2. Ask: “Read this file, then continue this conversation in green-lighthouse.” The agent prepares a brief and invokes `mesh handoff` with the selected input.
+3. Confirm the **same terminal** shows `green-lighthouse / codex`, and the destination reports Linux hostname `green-lighthouse` and account `blas`. Handoff success must include `terminal_switched: true`.
+4. Press Ctrl-b then b: the original Mac conversation must still be there. Ctrl-b then m, choose the server: its same conversation and process must return without another context transfer.
+5. Check the old, unrelated session did not change. Compare runtime PIDs before/after rather than relying only on an agent's prose.
+6. Disconnect the test frontend and attempt a switch: expect “no attached terminal,” with no invisible success. If staging works but SSH attachment fails, expect “context delivered but terminal switch was not confirmed”; retry the same handoff ID after restoring connectivity.
+
+Automated regressions simulate stale session variables, a shared executor without provider ancestry, denied process inspection, two attached frontends, successful staging followed by failed interactive SSH, idempotent recovery, and preservation of source/background agents. Tests use real tmux clients; the SSH fixture attaches through a real PTY.

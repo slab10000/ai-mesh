@@ -1,0 +1,87 @@
+{
+  "recorded_at": "2026-10-06T22:57:52.268988+00:00",
+  "source": {
+    "active": true,
+    "group": "b0929e9b2f9055e1436f8133f28f0459",
+    "window": "w27bafe56",
+    "machine": "macbook",
+    "agent": "codex",
+    "project": "/Users/blasmorenolaguna/Documents/TODO/Coding/multi-agent/artifacts/e2e/bound-handoff",
+    "pid": 66788,
+    "started_at": "2026-10-06T22:45:50.619434Z"
+  },
+  "destination": {
+    "runtime": {
+      "active": true,
+      "group": "b0929e9b2f9055e1436f8133f28f0459",
+      "window": "wfa55b542",
+      "machine": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas/.ai-mesh/projects/b0929e9b2f9055e1436f8133f28f0459",
+      "pid": 801988,
+      "started_at": "2026-10-06T22:51:55.791202949Z",
+      "first_handoff": "4c27b25bb30bdd400e6edf7667ef0b34"
+    },
+    "handoff": {
+      "id": "4c27b25bb30bdd400e6edf7667ef0b34",
+      "group": "b0929e9b2f9055e1436f8133f28f0459",
+      "window": "wfa55b542",
+      "source": "macbook",
+      "destination": "green-lighthouse",
+      "agent": "codex",
+      "project": "/home/blas/.ai-mesh/projects/b0929e9b2f9055e1436f8133f28f0459",
+      "context_path": "/home/blas/.ai-mesh/projects/b0929e9b2f9055e1436f8133f28f0459/.mesh/handoffs/4c27b25bb30bdd400e6edf7667ef0b34/CONTEXT.md",
+      "inputs_path": "/home/blas/.ai-mesh/projects/b0929e9b2f9055e1436f8133f28f0459/.mesh/handoffs/4c27b25bb30bdd400e6edf7667ef0b34/inputs",
+      "created_at": "2026-10-06T22:51:55.175544155Z",
+      "fingerprint": "bc5ede1af6f06243a8ef8e99f4fd0d6ac80c5e46c2e99f1067b2b94dc205f775"
+    },
+    "acknowledgment": {
+      "id": "4c27b25bb30bdd400e6edf7667ef0b34",
+      "fingerprint": "bc5ede1af6f06243a8ef8e99f4fd0d6ac80c5e46c2e99f1067b2b94dc205f775",
+      "read_at": "2026-10-06T22:52:47.838464306Z"
+    },
+    "file_sha256": "bc982107152ac0dbfa825511c829aae39475b3115d828c1f9f5cfc500a6ef3fa",
+    "handoff_ids": [
+      "4c27b25bb30bdd400e6edf7667ef0b34"
+    ],
+    "existing_user_agent_pid": 797416
+  },
+  "source_file_sha256": "bc982107152ac0dbfa825511c829aae39475b3115d828c1f9f5cfc500a6ef3fa",
+  "attached_clients": [
+    "/dev/ttys000|mesh-0d32834b6c98b5e4220b34fec655a814|w4c48db44",
+    "/dev/ttys005|mesh-7937306d7cb33c8215312e284cce8b3d|wf6df3e09",
+    "/dev/ttys006|mesh-b0929e9b2f9055e1436f8133f28f0459|wfa55b542"
+  ],
+  "existing_user_mac_pid": 47740,
+  "verified": [
+    "natural-language Codex handoff in the same PTY",
+    "destination hostname green-lighthouse and user blas",
+    "selected file contents and matching SHA256",
+    "workspace-local inbox acknowledgment",
+    "keyboard return to same Mac chat",
+    "computer menu reopens same server chat",
+    "both provider PIDs preserved",
+    "no additional handoffs after navigation",
+    "unrelated attached user chat unchanged"
+  ],
+  "tests": {
+    "command": "make check",
+    "race_suite_seconds": 94.238,
+    "status": "passed",
+    "builds": [
+      "darwin/arm64",
+      "darwin/amd64",
+      "linux/arm64",
+      "linux/amd64"
+    ]
+  },
+  "provider_controls": "Normal network/socket approvals and fresh-workspace trust prompt retained. No bypass-permissions flags.",
+  "screenshots": [
+    "12-visible-handoff-on-server.jpg",
+    "13-return-to-same-mac-chat.jpg"
+  ],
+  "agent_driven_server_return": {
+    "status": "unconfirmed",
+    "reason": "Provider sandbox denied socket access; the normal approval retry remained pending when the agent ended its turn. Keyboard return and revisit passed separately."
+  }
+}

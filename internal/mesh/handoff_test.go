@@ -16,12 +16,18 @@ func fakeInteractiveProvider(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
 	script := `#!/usr/bin/env python3
-import json, os, pathlib, sys, time
+import json, os, pathlib, subprocess, sys, time
 root=pathlib.Path(os.environ['MESH_HOME'])
 window=os.environ['MESH_WINDOW']
 proof=root/('provider-'+window+'.json')
 proof.write_text(json.dumps({'pid':os.getpid(),'argv':sys.argv[1:],'machine':os.environ['MESH_MACHINE'],'group':os.environ['MESH_SESSION_ID']}))
 while True:
+ command=root/('command-'+window+'.sh')
+ if command.exists():
+  script=command.read_text()
+  command.unlink()
+  result=subprocess.run(['/bin/sh','-c',script],capture_output=True,text=True)
+  (root/('command-'+window+'.json')).write_text(json.dumps({'code':result.returncode,'stdout':result.stdout,'stderr':result.stderr}))
  (root/('heartbeat-'+window)).write_text(str(time.monotonic_ns()))
  time.sleep(.1)
 `
@@ -180,6 +186,7 @@ func TestHandoffAndPlainSwitchPreserveLiveConversations(t *testing.T) {
 	if err := a.createWindow(g, w, true); err != nil {
 		t.Fatal(err)
 	}
+	attachTestFrontend(t, a, g.ID)
 	if err := a.ensureController(g); err != nil {
 		t.Fatal(err)
 	}
@@ -211,6 +218,22 @@ func TestHandoffAndPlainSwitchPreserveLiveConversations(t *testing.T) {
 	if err := readJSON(b.path("handoffs", h.ID+".json"), &staged); err != nil {
 		t.Fatal("handoff was not staged before the lost reply", err)
 	}
+	// File transfer can succeed while the interactive SSH connection fails.
+	// The source stays visible, and retrying repairs the same destination.
+	if err := os.WriteFile(b.path("attach-offline"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controlCall(g.Socket, g.Token, "/handoff", request); err == nil || !strings.Contains(err.Error(), "context delivered but terminal switch was not confirmed") {
+		t.Fatal("failed interactive connection was reported as a completed handoff", err)
+	}
+	visible, _ := a.frontendWindows(g.ID)
+	unchanged, _ := a.session(g.ID)
+	if len(visible) != 1 || visible[0] != w.ID || len(unchanged.Back) != 0 {
+		t.Fatal("failed display changed the source terminal or its navigation history")
+	}
+	if err := os.Remove(b.path("attach-offline")); err != nil {
+		t.Fatal(err)
+	}
 	response, err := controlCall(g.Socket, g.Token, "/handoff", request)
 	if err != nil {
 		t.Fatal(err)
@@ -226,7 +249,7 @@ func TestHandoffAndPlainSwitchPreserveLiveConversations(t *testing.T) {
 		t.Fatal("uncertain handoff retry changed destination or receipt")
 	}
 	destination := testRuntime(t, b, g.ID, result.Handoff.Window)
-	if destination.Agent != "codex" || destination.FirstHandoff != h.ID || result.Reused {
+	if destination.Agent != "codex" || destination.FirstHandoff != h.ID {
 		t.Fatal("new destination did not inherit handoff", destination)
 	}
 	var proof struct {

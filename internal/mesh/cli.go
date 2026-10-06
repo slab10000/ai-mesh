@@ -395,9 +395,9 @@ func Main(args []string) error {
 		if e := f.Parse(args[1:]); e != nil {
 			return e
 		}
-		return RequestSwitch(args[0], *agent, *project, false)
+		return s.RequestSwitch(args[0], *agent, *project, false)
 	case "back":
-		return RequestSwitch("", "", "", true)
+		return s.RequestSwitch("", "", "", true)
 	case "handoff":
 		return s.HandoffCLI(args)
 	case "session":

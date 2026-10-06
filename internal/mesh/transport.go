@@ -151,6 +151,8 @@ func (s *Store) Handle(r Request) (any, error) {
 		return nil, errors.New("this machine does not accept incoming Mesh requests")
 	}
 	switch r.Action {
+	case "session-state":
+		return s.remoteSessionState(r.ID)
 	case "handoff":
 		if r.Handoff == nil {
 			return nil, errors.New("missing conversation handoff")

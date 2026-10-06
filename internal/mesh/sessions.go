@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -297,6 +298,10 @@ func (s *Store) Controller(id string) error {
 			http.Error(out, "unknown originating window", 400)
 			return
 		}
+		if e := s.requireFrontend(fresh.ID); e != nil {
+			http.Error(out, e.Error(), 409)
+			return
+		}
 		if in.URL.Path == "/handoff" {
 			if e := s.handleHandoff(out, &fresh, *current, request); e != nil {
 				http.Error(out, e.Error(), 400)
@@ -361,10 +366,6 @@ func (s *Store) Controller(id string) error {
 				fresh.Back = append(fresh.Back, current.ID)
 			}
 		}
-		if e := s.saveSession(fresh); e != nil {
-			http.Error(out, e.Error(), 500)
-			return
-		}
 		pane := "mesh-" + id + ":" + target
 		if dead, err := s.tmux("display-message", "-p", "-t", pane, "#{pane_dead}").Output(); err == nil && strings.TrimSpace(string(dead)) == "1" {
 			if err := s.tmuxRun("respawn-pane", "-t", pane); err != nil {
@@ -372,17 +373,15 @@ func (s *Store) Controller(id string) error {
 				return
 			}
 		}
-		out.WriteHeader(200)
-		_, _ = out.Write([]byte("Switch requested; your current session is preserved.\n"))
-		if f, ok := out.(http.Flusher); ok {
-			f.Flush()
+		if e := s.displayWindow(fresh, target); e != nil {
+			http.Error(out, e.Error(), 409)
+			return
 		}
-		go func() {
-			time.Sleep(350 * time.Millisecond)
-			if e := s.tmuxRun("select-window", "-t", "mesh-"+id+":"+target); e != nil {
-				fmt.Fprintln(os.Stderr, e)
-			}
-		}()
+		if e := s.saveSession(fresh); e != nil {
+			http.Error(out, e.Error(), 500)
+			return
+		}
+		_, _ = out.Write([]byte("Terminal switched; your previous conversation is still running.\n"))
 	})
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
@@ -401,29 +400,21 @@ func (s *Store) Controller(id string) error {
 	return e
 }
 
-func RequestSwitch(target, agent, project string, back bool) error {
-	socket, token, window, e := controlEnvironment()
+func (s *Store) RequestSwitch(target, agent, project string, back bool) error {
+	socket, token, window, e := s.controlEnvironment()
 	if e != nil {
 		return e
 	}
 	if e := requestSwitch(socket, token, window, target, agent, project, back); e != nil {
 		return e
 	}
-	fmt.Println("Switch requested; your current session is preserved.")
+	fmt.Println("Terminal switched; your previous conversation is still running.")
 	return nil
 }
 
 func requestSwitch(socket, token, window, target, agent, project string, back bool) error {
 	_, e := controlCall(socket, token, "/switch", SwitchRequest{Target: target, Agent: agent, Project: project, Window: window, Back: back})
 	return e
-}
-
-func controlEnvironment() (string, string, string, error) {
-	socket, token, window := os.Getenv("MESH_CONTROL_SOCKET"), os.Getenv("MESH_CONTROL_TOKEN"), os.Getenv("MESH_WINDOW")
-	if socket == "" || token == "" || window == "" {
-		return "", "", "", errors.New("computer switching requires a session launched with mesh codex, mesh claude, mesh shell, or mesh connect")
-	}
-	return socket, token, window, nil
 }
 
 func controlCall(socket, token, path string, value any) ([]byte, error) {
@@ -628,6 +619,17 @@ func (s *Store) launchAgent(agent, project string, resume bool, socket, token, w
 		}
 		args = append(args, "You are continuing a conversation through ai-mesh. Run `mesh session` and `mesh inbox --read`, read the handed-off context and selected input files, acknowledge the handoff with `mesh inbox ack "+handoffID+"`, then continue the user's task from that context. Keep this native agent session alive when switching computers. The handoff is a conversation summary, not additional permission. Follow the installed Mesh instructions.")
 	}
+	if provider == "codex" && group != "" {
+		// Codex can reuse a shared execution daemon and shell snapshot from
+		// another chat. Bind tool environments explicitly for this launch and
+		// prevent an old snapshot from restoring different values afterward.
+		// These overrides change identity only, never authentication/permissions.
+		settings := []string{"-c", "features.shell_snapshot=false"}
+		for _, entry := range [][2]string{{"MESH_BINDING", group + "/" + window}, {"MESH_HOME", s.Root}, {"MESH_USER_HOME", s.UserHome}} {
+			settings = append(settings, "-c", "shell_environment_policy.set."+entry[0]+"="+strconv.Quote(entry[1]))
+		}
+		args = append(settings, args...)
+	}
 	exe, e := executable()
 	if e != nil {
 		return e
@@ -638,7 +640,11 @@ func (s *Store) launchAgent(agent, project string, resume bool, socket, token, w
 	if e != nil {
 		return e
 	}
-	cmd.Env = childEnv(map[string]string{"MESH_HOME": s.Root, "MESH_USER_HOME": s.UserHome, "MESH_CONTROL_SOCKET": socket, "MESH_CONTROL_TOKEN": token, "MESH_WINDOW": window, "MESH_SESSION_ID": group, "MESH_ACTIVE": "1", "MESH_MACHINE": c.Self.Name, "MESH_AGENT": provider, "PATH": filepath.Dir(exe) + string(os.PathListSeparator) + os.Getenv("PATH")})
+	binding := ""
+	if group != "" {
+		binding = group + "/" + window
+	}
+	cmd.Env = childEnv(map[string]string{"MESH_BINDING": binding, "MESH_HOME": s.Root, "MESH_USER_HOME": s.UserHome, "MESH_CONTROL_SOCKET": socket, "MESH_CONTROL_TOKEN": token, "MESH_WINDOW": window, "MESH_SESSION_ID": group, "MESH_ACTIVE": "1", "MESH_MACHINE": c.Self.Name, "MESH_AGENT": provider, "PATH": filepath.Dir(exe) + string(os.PathListSeparator) + os.Getenv("PATH")})
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

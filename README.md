@@ -204,6 +204,8 @@ Installation adds instructions for an agent to prepare the brief and invoke `mes
 
 After upgrading, run `mesh integrate` on both computers and start a new Mesh terminal for the new controller and instructions. Existing native agents remain running; their previous controllers are not replaced in place. These commands control CLI terminals, not desktop application chats.
 
+Mesh binds tool calls to their conversation explicitly. For Codex, launch-scoped environment configuration and disabled shell snapshots prevent its shared execution service from restoring another chat's identity. Codex 0.160.1 uses its embedded execution mode with these overrides; provider authentication and permission settings are unchanged. Native process ancestry is also used for providers with direct child tools. Handoff success includes `terminal_switched: true` only after the destination provider and terminal connection are ready and an attached frontend displays its window. A detached frontend or failed SSH attachment returns an error; delivered context can be retried with the same handoff ID. The source stays alive.
+
 Remote switch requests return through a Unix socket forwarded over the existing SSH connection. This needs SSH stream-local forwarding enabled on the destination. It works even when the originating laptop declines incoming SSH access. Interactive tmux sessions survive ordinary client disconnection; a host reboot requires native agent resume rather than restoring a running process.
 
 ## Shared machine descriptions

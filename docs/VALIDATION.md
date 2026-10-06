@@ -139,3 +139,30 @@ Screenshots below are actual terminal output. The [short guide](QUICKSTART.md) a
 ![Mac Codex invoked mesh handoff after a natural-language request](evidence/10-agent-triggered-handoff.jpg)
 
 ![New destination conversation automatically continued and acknowledged its handoff](evidence/11-automatic-new-conversation.jpg)
+
+
+## Visible handoff regression — October 6, 2026
+
+A later real user test exposed a gap in the earlier validation: the context arrived, but commands from a newer Codex terminal addressed an older Mesh session. The old group changed windows while the attached terminal stayed on the Mac. Two factors caused this: Codex's shared execution service/shell snapshot retained an older Mesh environment, and the controller acknowledged a handoff before asynchronously selecting a window.
+
+Mesh now gives each Codex launch an explicit conversation binding through its shell environment configuration and disables shell snapshots for that launch. On Codex 0.160.1, these command-line overrides select embedded execution mode. The existing authentication, sandbox and approval settings remain in effect. The CLI also resolves native process ancestry for direct child tools, rejects unverifiable identities when process inspection is denied, and reads controller credentials only from private Mesh state for the resolved conversation. Credentials are never supplied as command-line configuration values.
+
+The controller requires an attached frontend, checks that the provider and its terminal connection are ready, selects the destination synchronously, and verifies the attached frontend's window before reporting `terminal_switched: true`. A detached terminal or failed interactive SSH connection is an error. If files have already arrived, the same handoff ID can repair the attachment without duplicating context or replacing a live agent.
+
+The final live acceptance test used Mac Codex 0.160.1 and server Codex 0.155.1:
+
+- A natural-language request made Mac Codex read `selected-note.txt`, write the brief, and invoke `mesh handoff green-lighthouse` itself.
+- The same attached PTY changed from `macbook / codex` to `green-lighthouse / codex`. Another attached Mac conversation stayed unchanged.
+- The new server conversation automatically read the brief and selected file, acknowledged handoff `4c27b25bb30bdd400e6edf7667ef0b34`, and reported hostname `green-lighthouse`, user `blas`, and the blue cover from `VISIBLE_HANDOFF_106`.
+- Ctrl-b then b returned to the same Mac conversation, including the completed handoff tool call. Ctrl-b then m reopened the same server conversation, without another brief.
+- The Mac provider PID remained `66788`; the server provider PID remained `801988`.
+
+The normal provider controls were exercised: Codex requested approval to check network reachability and use the control socket, and the generated remote workspace displayed its initial trust prompt. These were handled through the normal provider flow. Mesh did not disable permissions or authentication. A further natural-language `mesh back` test on the server reached its normal approval hook but ended without confirmation; it is recorded as unconfirmed, not as a passed agent-driven return. Keyboard return and revisit were verified independently. Existing destination conversations still receive briefs through their inbox and consume them on their next user turn; this change does not add automatic turn injection into a busy provider.
+
+The user's already-open Mac and server conversations were repaired in place by binding their own cached shell snapshots to their existing Mesh windows. Their controllers were updated without restarting their agents (Mac PID `47740`, server PID `797416`). New launches receive the binding automatically.
+
+Validation: `make check` passed (`go vet`, full race-enabled suite, 94.238 seconds). Regression tests include a shared executor with no provider ancestry, stale variables with two attached groups, restricted process lookup, no attached terminal, successful staging followed by failed interactive SSH, retry recovery, context acknowledgments, and unchanged provider PIDs. All four macOS/Linux build targets compiled. See [the reproducible checklist](TESTING.md#10-verify-a-visible-handoff-with-multiple-live-sessions) and [the structured evidence](evidence/visible-handoff-fix.json).
+
+![Same terminal after handoff, showing server hostname and received file](evidence/12-visible-handoff-on-server.jpg)
+
+![Returning to the original Mac chat, with the completed handoff still present](evidence/13-return-to-same-mac-chat.jpg)

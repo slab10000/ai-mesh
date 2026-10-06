@@ -150,6 +150,14 @@ env['MESH_HOME'] = peer['root']
 env['MESH_USER_HOME'] = peer['home']
 env['SSH_CONNECTION'] = '127.0.0.1 40000 127.0.0.1 22'
 env.pop('MESH_JOB_ID', None)
+if '-tt' in sys.argv:
+    if os.path.exists(os.path.join(peer['root'], 'attach-offline')):
+        sys.exit(255)
+    import pty
+    os.environ.clear()
+    os.environ.update(env)
+    os.environ['TERM'] = 'xterm-256color'
+    sys.exit(os.waitstatus_to_exitcode(pty.spawn(['/bin/sh', '-c', command])))
 result = subprocess.run(command, shell=True, env=env, input=payload, stdout=subprocess.PIPE)
 drop = os.path.join(peer['root'], 'drop-reply')
 if os.path.exists(drop):
@@ -645,6 +653,7 @@ func TestSessionSwitchAndReturn(t *testing.T) {
 	if e := s.createWindow(g, w, true); e != nil {
 		t.Fatal(e)
 	}
+	attachTestFrontend(t, s, g.ID)
 	if e := s.ensureController(g); e != nil {
 		t.Fatal(e)
 	}
@@ -653,7 +662,7 @@ func TestSessionSwitchAndReturn(t *testing.T) {
 	t.Setenv("MESH_WINDOW", w.ID)
 	project := filepath.Join(s.UserHome, "another-project")
 	_ = os.MkdirAll(project, 0700)
-	if e := RequestSwitch("local", "codex", project, false); e != nil {
+	if e := s.RequestSwitch("local", "codex", project, false); e != nil {
 		t.Fatal(e)
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -665,7 +674,7 @@ func TestSessionSwitchAndReturn(t *testing.T) {
 		t.Fatalf("switch lost state: %+v", updated)
 	}
 	t.Setenv("MESH_WINDOW", updated.Windows[1].ID)
-	if e := RequestSwitch("", "", "", true); e != nil {
+	if e := s.RequestSwitch("", "", "", true); e != nil {
 		t.Fatal(e)
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -691,7 +700,7 @@ func TestSessionSwitchAndReturn(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if e := RequestSwitch("local", "codex", project, false); e != nil {
+	if e := s.RequestSwitch("local", "codex", project, false); e != nil {
 		t.Fatal(e)
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -700,7 +709,7 @@ func TestSessionSwitchAndReturn(t *testing.T) {
 		t.Fatal("switch left an exited pane instead of reconnecting")
 	}
 	t.Setenv("MESH_CONTROL_TOKEN", "wrong")
-	if e := RequestSwitch("local", "", "", false); e == nil {
+	if e := s.RequestSwitch("local", "", "", false); e == nil {
 		t.Fatal("unauthenticated control accepted")
 	}
 	// The controller notices the removed group and exits on its next idle check.

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 const MaxHandoffContext = 256 << 10
@@ -86,14 +85,23 @@ func (s *Store) runtimePath(group, window string) string {
 // Runtime identity is separate from authentication. It is safe to show to the
 // agent/user; the controller token is never returned by these commands.
 func (s *Store) CurrentSession() (SessionRuntime, error) {
+	if bound, present, err := s.boundSession(); present || err != nil {
+		return bound, err
+	}
+	runtime, proven, identityErr := s.ancestorSession()
+	if proven {
+		return runtime, nil
+	}
 	group, window := os.Getenv("MESH_SESSION_ID"), os.Getenv("MESH_WINDOW")
 	if group == "" || window == "" {
 		return SessionRuntime{Active: false}, nil
 	}
+	if identityErr != nil {
+		return SessionRuntime{}, identityErr
+	}
 	if !validID.MatchString(group) || !validID.MatchString(window) {
 		return SessionRuntime{}, errors.New("invalid Mesh session identity")
 	}
-	var runtime SessionRuntime
 	if err := readJSON(s.runtimePath(group, window), &runtime); err != nil {
 		return runtime, err
 	}
@@ -306,7 +314,7 @@ func (s *Store) HandoffCLI(args []string) error {
 	if !validID.MatchString(*id) {
 		return errors.New("invalid handoff ID")
 	}
-	socket, token, window, err := controlEnvironment()
+	socket, token, window, err := s.controlEnvironment()
 	if err != nil {
 		return err
 	}
@@ -420,6 +428,9 @@ func (s *Store) handleHandoff(out http.ResponseWriter, group *SessionGroup, curr
 			return err
 		}
 	}
+	if err := s.displayWindow(*group, window.ID); err != nil {
+		return fmt.Errorf("context delivered but terminal switch was not confirmed: %w", err)
+	}
 	if len(group.Back) == 0 || group.Back[len(group.Back)-1] != current.ID {
 		group.Back = append(group.Back, current.ID)
 	}
@@ -429,16 +440,7 @@ func (s *Store) handleHandoff(out http.ResponseWriter, group *SessionGroup, curr
 	// Keep old processes running. An existing agent reads the new inbox at
 	// its next user turn; never type blindly into a possibly busy agent TUI.
 	out.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(out).Encode(map[string]any{"handoff": receipt, "session_reused": reused, "context_delivery": "inbox", "source_session_preserved": true})
-	if f, ok := out.(http.Flusher); ok {
-		f.Flush()
-	}
-	go func() {
-		time.Sleep(350 * time.Millisecond)
-		if err := s.tmuxRun("select-window", "-t", pane); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
-	}()
+	_ = json.NewEncoder(out).Encode(map[string]any{"handoff": receipt, "session_reused": reused, "context_delivery": "inbox", "source_session_preserved": true, "terminal_switched": true})
 	return nil
 }
 
