@@ -1,6 +1,6 @@
 # Manual test: Mac → green-lighthouse
 
-These are instructions for you to run. Development and automated tests do not contact green-lighthouse or change your real agent configuration. The tests below deliberately separate connectivity, file delivery, providers, and terminal switching so failures are easier to locate.
+This manual checklist complements the completed real-machine tests in [VALIDATION.md](VALIDATION.md) and the [short usage guide](QUICKSTART.md). The default Go tests use fixtures; the opt-in `scripts/e2e.py` suite contacts the destination you specify. The tests below deliberately separate connectivity, file delivery, providers, and terminal switching so failures are easier to locate.
 
 ## 1. Build and install locally
 
@@ -19,10 +19,10 @@ This builds and installs the Mac executable and destination binaries. `--no-setu
 
 ```sh
 tailscale status
-ssh YOUR_SERVER_USER@green-lighthouse 'uname -s; uname -m; command -v tmux'
+ssh blas@green-lighthouse 'uname -s; uname -m; command -v tmux'
 ```
 
-Replace `YOUR_SERVER_USER` with your server account. Use the server's full Tailscale DNS name or address if the short name does not resolve. Confirm any new host key using the verification you normally use for SSH. Mesh uses this existing SSH access; it does not configure the Tailscale account or SSH server.
+Use your own SSH username if you repeat this on another server. Use the server's full Tailscale DNS name or address if the short name does not resolve. Confirm any new host key using the verification you normally use for SSH. Mesh uses this existing SSH access; it does not configure the Tailscale account or SSH server.
 
 If the `tailscale` command is not installed, use the Tailscale app's computer list and pass the address directly to SSH and Mesh.
 
@@ -32,7 +32,7 @@ On Linux, `x86_64` maps to `mesh-linux-amd64` and `aarch64` maps to `mesh-linux-
 
 ```sh
 mesh init --name mac --incoming=false
-mesh enroll green-lighthouse --user YOUR_SERVER_USER \
+mesh enroll green-lighthouse --user blas \
   --name green-lighthouse --mutual --service=false --integrate=false
 mesh machines --check --json
 mesh sync
@@ -104,7 +104,7 @@ For a PDF test, send your instruction file with `--input`, optionally send a han
 ```sh
 mesh integrate
 mesh service install
-ssh YOUR_SERVER_USER@green-lighthouse \
+ssh blas@green-lighthouse \
   '"$HOME/.local/bin/mesh" integrate; "$HOME/.local/bin/mesh" service install'
 mesh service status
 ```

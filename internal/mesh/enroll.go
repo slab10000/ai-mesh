@@ -200,7 +200,7 @@ func (s *Store) writeAccess(c Config) error {
 				lines = append(lines, line)
 			}
 		}
-		var known []string
+		var known, meshKeys []string
 		for _, p := range c.Peers {
 			key, e := publicKey(p.PublicKey)
 			if e != nil {
@@ -208,6 +208,7 @@ func (s *Store) writeAccess(c Config) error {
 			}
 			if c.Self.Incoming {
 				lines = append(lines, `no-agent-forwarding,no-X11-forwarding `+key+" ai-mesh-managed:"+p.ID)
+				meshKeys = append(meshKeys, `no-agent-forwarding,no-X11-forwarding `+key+" ai-mesh-managed:"+p.ID)
 			}
 			host := p.Endpoint.Host
 			if p.Endpoint.Port != 22 {
@@ -228,6 +229,9 @@ func (s *Store) writeAccess(c Config) error {
 			if e := atomicWrite(file, []byte(strings.Join(lines, "\n")+"\n"), 0600); e != nil {
 				return e
 			}
+		}
+		if e := atomicWrite(s.path("ssh-server", "authorized_keys"), []byte(strings.Join(meshKeys, "\n")+"\n"), 0600); e != nil {
+			return e
 		}
 		return atomicWrite(s.path("known_hosts"), []byte(strings.Join(known, "\n")+"\n"), 0600)
 	})
@@ -455,7 +459,7 @@ func (s *Store) reconcilePeers(rejoinID string) []string {
 func (s *Store) SetIncoming(value bool) error {
 	if e := s.updateConfig(func(c *Config) error {
 		c.Self.Incoming = value
-		c.Self.HostKeys = hostKeys()
+		c.Self.HostKeys = s.localHostKeys()
 		return s.writeAccess(*c)
 	}); e != nil {
 		return e

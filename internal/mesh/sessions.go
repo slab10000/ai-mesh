@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -51,7 +52,7 @@ type SwitchRequest struct {
 
 func (s *Store) tmuxName() string { return "ai-mesh-" + digest([]byte(s.Root))[:12] }
 func (s *Store) tmux(args ...string) *exec.Cmd {
-	return exec.Command("tmux", append([]string{"-L", s.tmuxName(), "-f", "/dev/null"}, args...)...)
+	return exec.Command("tmux", append([]string{"-u", "-L", s.tmuxName(), "-f", "/dev/null"}, args...)...)
 }
 func (s *Store) tmuxRun(args ...string) error {
 	b, e := s.tmux(args...).CombinedOutput()
@@ -61,7 +62,7 @@ func (s *Store) tmuxRun(args ...string) error {
 	return nil
 }
 func supportedInteractive(agent string) bool {
-	return agent == "codex" || agent == "claude" || agent == "gemini" || agent == "opencode"
+	return agent == "codex" || agent == "claude" || agent == "gemini" || agent == "opencode" || agent == "shell"
 }
 func (s *Store) session(id string) (SessionGroup, error) {
 	var g SessionGroup
@@ -176,7 +177,16 @@ func (s *Store) createWindow(g SessionGroup, w SessionWindow, first bool) error 
 	_ = s.tmuxRun("set-option", "-w", "-t", "mesh-"+g.ID+":"+w.ID, "@mesh-label", label)
 	_ = s.tmuxRun("set-option", "-t", "mesh-"+g.ID, "status-left", " ai-mesh | #{@mesh-label} ")
 	_ = s.tmuxRun("set-option", "-t", "mesh-"+g.ID, "status-left-length", "80")
-	_ = s.tmuxRun("set-option", "-t", "mesh-"+g.ID, "status-right", " Ctrl-b d: detach | mesh back: return ")
+	_ = s.tmuxRun("set-option", "-t", "mesh-"+g.ID, "status-right", " Ctrl-b: m computers | b back | d detach ")
+	_ = s.tmuxRun("set-option", "-t", "mesh-"+g.ID, "status-right-length", "60")
+	_ = s.tmuxRun("set-option", "-w", "-t", "mesh-"+g.ID+":"+w.ID, "window-status-format", "")
+	_ = s.tmuxRun("set-option", "-w", "-t", "mesh-"+g.ID+":"+w.ID, "window-status-current-format", "")
+	for key, action := range map[string]string{"m": "_menu", "b": "_return"} {
+		control := shellJoin("env", "MESH_HOME="+s.Root, "MESH_USER_HOME="+s.UserHome, exe, action, "#{session_name}", "#{window_name}")
+		if e := s.tmuxRun("bind-key", key, "run-shell", "-b", control); e != nil {
+			return e
+		}
+	}
 	// Set remain-on-exit before the agent can exit, so startup/authentication
 	// errors remain visible even when the provider quits immediately.
 	return s.tmuxRun("respawn-pane", "-k", "-t", "mesh-"+g.ID+":"+w.ID, command)
@@ -340,6 +350,13 @@ func (s *Store) Controller(id string) error {
 			http.Error(out, e.Error(), 500)
 			return
 		}
+		pane := "mesh-" + id + ":" + target
+		if dead, err := s.tmux("display-message", "-p", "-t", pane, "#{pane_dead}").Output(); err == nil && strings.TrimSpace(string(dead)) == "1" {
+			if err := s.tmuxRun("respawn-pane", "-t", pane); err != nil {
+				http.Error(out, err.Error(), 500)
+				return
+			}
+		}
 		out.WriteHeader(200)
 		_, _ = out.Write([]byte("Switch requested; your current session is preserved.\n"))
 		if f, ok := out.(http.Flusher); ok {
@@ -372,8 +389,16 @@ func (s *Store) Controller(id string) error {
 func RequestSwitch(target, agent, project string, back bool) error {
 	socket, token, window := os.Getenv("MESH_CONTROL_SOCKET"), os.Getenv("MESH_CONTROL_TOKEN"), os.Getenv("MESH_WINDOW")
 	if socket == "" || token == "" || window == "" {
-		return errors.New("computer switching requires a session launched with mesh codex, mesh claude, or mesh connect")
+		return errors.New("computer switching requires a session launched with mesh codex, mesh claude, mesh shell, or mesh connect")
 	}
+	if e := requestSwitch(socket, token, window, target, agent, project, back); e != nil {
+		return e
+	}
+	fmt.Println("Switch requested; your current session is preserved.")
+	return nil
+}
+
+func requestSwitch(socket, token, window, target, agent, project string, back bool) error {
 	body, _ := json.Marshal(SwitchRequest{target, agent, project, window, back})
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
@@ -394,7 +419,6 @@ func RequestSwitch(target, agent, project string, back bool) error {
 	if response.StatusCode != 200 {
 		return errors.New(strings.TrimSpace(string(b)))
 	}
-	fmt.Print(string(b))
 	return nil
 }
 
@@ -501,6 +525,9 @@ func (s *Store) RemoteSession(id string) error {
 		}
 		_ = s.tmuxRun("set-option", "-t", name, "status-left", " "+c.Self.Name+" | "+spec.Agent+" ")
 	}
+	// The originating Mesh terminal already labels the active machine. Avoid
+	// a second, truncated tmux status bar inside the remote agent's viewport.
+	_ = s.tmuxRun("set-option", "-t", name, "status", "off")
 	cmd := s.tmux("attach-session", "-t", name)
 	cmd.Env = childEnv(nil)
 	cmd.Stdin = os.Stdin
@@ -540,6 +567,16 @@ func (s *Store) launchAgent(agent, project string, resume bool, socket, token, w
 		return errors.New("project is not a directory")
 	}
 	args := []string{}
+	if agent == "shell" {
+		if resume {
+			return errors.New("use mesh shell --resume only to reattach an existing Mesh shell")
+		}
+		agent = os.Getenv("SHELL")
+		if agent == "" {
+			agent = "/bin/sh"
+		}
+		args = []string{"-i"}
+	}
 	if resume {
 		switch agent {
 		case "codex":
@@ -561,4 +598,47 @@ func (s *Store) launchAgent(agent, project string, resume bool, socket, token, w
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// Keyboard navigation is handled by the local Mesh controller, independently
+// of an AI provider's shell sandbox or willingness to invoke a switch command.
+func (s *Store) SessionControl(group, window, target string, back bool) error {
+	g, e := s.session(strings.TrimPrefix(group, "mesh-"))
+	if e != nil {
+		return e
+	}
+	return requestSwitch(g.Socket, g.Token, window, target, "", "", back)
+}
+
+func (s *Store) ComputerMenu(group, window string) error {
+	g, e := s.session(strings.TrimPrefix(group, "mesh-"))
+	if e != nil {
+		return e
+	}
+	c, e := s.Config()
+	if e != nil {
+		return e
+	}
+	exe, e := executable()
+	if e != nil {
+		return e
+	}
+	peers := []Peer{c.Self}
+	for _, p := range c.Peers {
+		if p.Incoming {
+			peers = append(peers, p)
+		}
+	}
+	sort.Slice(peers, func(i, j int) bool { return peers[i].Name < peers[j].Name })
+	args := []string{"display-menu", "-t", "mesh-" + g.ID + ":" + window, "-T", "Choose computer", "-x", "C", "-y", "C"}
+	keys := "123456789abcdefghijklmnopqrstuvwxyz"
+	for i, p := range peers {
+		key := ""
+		if i < len(keys) {
+			key = keys[i : i+1]
+		}
+		command := shellJoin("env", "MESH_HOME="+s.Root, "MESH_USER_HOME="+s.UserHome, exe, "_select", g.ID, window, p.ID)
+		args = append(args, p.Name, key, "run-shell -b "+quote(command))
+	}
+	return s.tmuxRun(args...)
 }

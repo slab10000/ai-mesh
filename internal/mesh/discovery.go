@@ -33,6 +33,7 @@ type tailscaleNode struct {
 	DNSName      string   `json:"DNSName"`
 	TailscaleIPs []string `json:"TailscaleIPs"`
 	Online       bool     `json:"Online"`
+	Tags         []string `json:"Tags"`
 }
 
 func parseTailscale(b []byte) ([]Candidate, error) {
@@ -42,6 +43,15 @@ func parseTailscale(b []byte) ([]Candidate, error) {
 	}
 	var out []Candidate
 	for _, p := range data.Peer {
+		infrastructure := false
+		for _, tag := range p.Tags {
+			if tag == "tag:ingress" {
+				infrastructure = true
+			}
+		}
+		if infrastructure {
+			continue
+		}
 		host := strings.TrimSuffix(p.DNSName, ".")
 		if host == "" && len(p.TailscaleIPs) > 0 {
 			host = p.TailscaleIPs[0]

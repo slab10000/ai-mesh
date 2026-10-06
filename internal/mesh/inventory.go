@@ -53,7 +53,7 @@ func probe(name string, args ...string) string {
 // Preserve its ordering and add only conventional, existing tool directories.
 func extendToolPath(home string) {
 	paths := filepath.SplitList(os.Getenv("PATH"))
-	candidates := []string{filepath.Join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin"}
+	candidates := []string{filepath.Join(home, ".local", "bin"), filepath.Join(home, ".local", "share", "mise", "shims")}
 	nodes, _ := filepath.Glob(filepath.Join(home, ".nvm", "versions", "node", "*", "bin"))
 	sort.Slice(nodes, func(i, j int) bool {
 		a, ae := os.Stat(nodes[i])
@@ -61,6 +61,10 @@ func extendToolPath(home string) {
 		return ae == nil && be == nil && a.ModTime().After(b.ModTime())
 	})
 	candidates = append(candidates, nodes...)
+	// Prefer account-managed runtimes before shared fallback installations.
+	// A minimal SSH PATH otherwise selected a stale Homebrew Codex even though
+	// the account's interactive terminal used its working NVM installation.
+	candidates = append(candidates, "/opt/homebrew/bin", "/usr/local/bin")
 	seen := map[string]bool{}
 	for _, p := range paths {
 		seen[p] = true

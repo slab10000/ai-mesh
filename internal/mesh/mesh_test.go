@@ -12,8 +12,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -664,6 +666,32 @@ func TestSessionSwitchAndReturn(t *testing.T) {
 	selected, e := s.tmux("display-message", "-p", "-t", "mesh-"+g.ID, "#{window_name}").Output()
 	if e != nil || strings.TrimSpace(string(selected)) != w.ID {
 		t.Fatalf("return failed: %s %v", selected, e)
+	}
+	// A broken SSH connection leaves an exited pane. Choosing the same
+	// computer must revive that pane rather than showing a dead terminal.
+	pidText, e := s.tmux("display-message", "-p", "-t", "mesh-"+g.ID+":"+updated.Windows[1].ID, "#{pane_pid}").Output()
+	if e != nil {
+		t.Fatal(e)
+	}
+	pid, e := strconv.Atoi(strings.TrimSpace(string(pidText)))
+	if e != nil {
+		t.Fatal(e)
+	}
+	_ = syscall.Kill(pid, syscall.SIGTERM)
+	for i := 0; i < 50; i++ {
+		dead, _ := s.tmux("display-message", "-p", "-t", "mesh-"+g.ID+":"+updated.Windows[1].ID, "#{pane_dead}").Output()
+		if strings.TrimSpace(string(dead)) == "1" {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if e := RequestSwitch("local", "codex", project, false); e != nil {
+		t.Fatal(e)
+	}
+	time.Sleep(500 * time.Millisecond)
+	dead, _ := s.tmux("display-message", "-p", "-t", "mesh-"+g.ID+":"+updated.Windows[1].ID, "#{pane_dead}").Output()
+	if strings.TrimSpace(string(dead)) != "0" {
+		t.Fatal("switch left an exited pane instead of reconnecting")
 	}
 	t.Setenv("MESH_CONTROL_TOKEN", "wrong")
 	if e := RequestSwitch("local", "", "", false); e == nil {

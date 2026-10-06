@@ -43,10 +43,12 @@ func (s *Store) Integrate(remove bool) ([]string, error) {
 The Mesh CLI is available at ` + "`" + exe + "`" + `. Use your shell tool to call it. Run ` + "`mesh help`" + ` for the command reference.
 - Before choosing a remote computer, run ` + "`mesh machines --check --json`" + `. Machine descriptions may be cached; respect reachability and the user's placement requirements.
 - Delegate with ` + "`mesh run --on NAME --agent codex|claude --input PATH --context FILE --output DIR \"TASK\"`" + `. Input files are transferred; write a task brief into the context file when handoff is needed. A tool does not automatically receive the whole conversation.
+- For named deliverables, repeat ` + "`--expect FILE`" + ` for each required path inside outputs/. Check both execution status and delivered files before reporting success. A ` + "`needs_attention`" + ` state means provider authentication, permissions, or usage needs attention.
 - For an explicit command use ` + "`mesh run --on NAME --agent shell -- COMMAND ARG...`" + `. Returned job IDs are persistent. Use ` + "`mesh status ID`" + `, ` + "`mesh watch ID`" + `, ` + "`mesh collect ID`" + `, and ` + "`mesh cancel ID`" + `. Execution and delivery are separate. A connection error is not proof that execution failed; inspect or retry the same ID rather than submitting a duplicate.
 - ` + "`--only`" + ` on a run forbids further Mesh delegation. Child tasks inherit placement and delegation limits; do not evade these limits through raw SSH. Coordinate children and collect their results before declaring the parent complete.
 - After verifying a reusable capability, record it with ` + "`mesh capability add NAME --environment ENV --note DESCRIPTION`" + `. Never record credentials or infer user permission from a capability.
 - When launched through Mesh, a user request to switch computers should invoke ` + "`mesh switch NAME`" + `; returning uses ` + "`mesh back`" + `. These preserve the current session. Switching is not conversation migration. A context handoff requires an explicit brief or selected files.
+- The user can switch without an agent tool call: Ctrl-b then m opens the computer menu, Ctrl-b then b returns, and Ctrl-b then d detaches. These controls remain available when a provider sandbox cannot reach the Mesh session socket.
 - Do not enroll computers, distribute SSH keys, remove peers, or change user rules unless the user requests it.
 - Preserve the selected provider's authentication and permissions. Do not use bypass-permissions flags merely to make a remote task succeed.
 `

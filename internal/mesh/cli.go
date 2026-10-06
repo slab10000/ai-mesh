@@ -26,6 +26,8 @@ Setup
   mesh peers reconcile                      Grant mutual access to enrolled peers
   mesh peers remove NAME                    Revoke locally and on reachable peers
   mesh access --incoming=true|false         Change this account's incoming access
+  mesh ssh-server install --address IP [--port 2222]  Optional macOS user SSH listener
+  mesh ssh-server status|uninstall          Inspect/remove that listener
   mesh integrate [--remove]                 Managed instructions for installed agents
   mesh service install|status|uninstall      User launchd/systemd service
   mesh doctor                               Local prerequisite checks
@@ -40,7 +42,7 @@ Inventory
 
 Tasks
   mesh run --on NAME --agent codex|claude --input PATH --context FILE
-           --output DIR [--only] [--max-depth 2] [--max-children 4] [--wait] "PROMPT"
+           --output DIR [--expect FILE] [--only] [--max-depth 2] [--max-children 4] [--wait] "PROMPT"
   mesh run --on NAME --agent shell [--input PATH] [--wait] -- COMMAND ARG...
   mesh jobs                                 Local jobs and outgoing receipts
   mesh status ID                            Execution and delivery status
@@ -51,11 +53,12 @@ Tasks
   mesh daemon [--once] [--interval 30s]      Sync and collect when peers reconnect
 
 Interactive sessions (tmux required on each participating machine)
-  mesh codex|claude|gemini|opencode [MACHINE] [--project DIR] [--resume]
+  mesh codex|claude|gemini|opencode|shell [MACHINE] [--project DIR] [--resume]
   mesh connect                              Choose a machine and an installed agent
   mesh switch MACHINE [--agent AGENT] [--project DIR]
   mesh back                                 Return to the preserved previous session
   mesh sessions                             List saved session groups
+  Ctrl-b m / Ctrl-b b                        Computer menu / return (inside Mesh)
 
 Flags precede task prompts/commands. Inputs and outputs are bounded to 32 MiB per
 bundle. Agent credentials stay on their host. MESH_HOME selects an isolated state
@@ -158,6 +161,17 @@ func Main(args []string) error {
 			return e
 		}
 		return printJSON(p)
+	case "ssh-server":
+		if e := need(args, 1, "mesh ssh-server install|status|uninstall"); e != nil {
+			return e
+		}
+		f := flags("ssh-server")
+		address := f.String("address", "", "local/private IP to listen on")
+		port := f.Int("port", 2222, "unprivileged SSH port")
+		if e := f.Parse(args[1:]); e != nil {
+			return e
+		}
+		return s.SSHServer(args[0], *address, *port)
 	case "access":
 		f := flags("access")
 		incoming := f.String("incoming", "", "true or false")
@@ -342,7 +356,7 @@ func Main(args []string) error {
 		return s.Service(args[0])
 	case "doctor":
 		return s.Doctor()
-	case "codex", "claude", "gemini", "opencode":
+	case "codex", "claude", "gemini", "opencode", "shell":
 		target := "local"
 		if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 			target = args[0]
@@ -404,6 +418,20 @@ func Main(args []string) error {
 			return e
 		}
 		return s.Controller(args[0])
+	case "_menu", "_select", "_return":
+		if e := need(args, 2, "missing session and window"); e != nil {
+			return e
+		}
+		if command == "_menu" {
+			return s.ComputerMenu(args[0], args[1])
+		}
+		if command == "_return" {
+			return s.SessionControl(args[0], args[1], "", true)
+		}
+		if e := need(args, 3, "missing destination"); e != nil {
+			return e
+		}
+		return s.SessionControl(args[0], args[1], args[2], false)
 	case "_pane":
 		if e := need(args, 2, "missing pane identity"); e != nil {
 			return e
@@ -436,11 +464,13 @@ func (s *Store) RunCLI(args []string) error {
 	children := f.Int("max-children", 4, "children per task")
 	wait := f.Bool("wait", false, "follow and collect")
 	var inputs stringsFlag
+	var expected stringsFlag
 	f.Var(&inputs, "input", "input file or directory (repeatable)")
+	f.Var(&expected, "expect", "required file inside outputs/ (repeatable)")
 	if e := f.Parse(args); e != nil {
 		return e
 	}
-	t := Task{Agent: *agent, MaxDepth: *depth, MaxChildren: *children}
+	t := Task{Agent: *agent, MaxDepth: *depth, MaxChildren: *children, RequiredOutputs: expected}
 	if *agent == "shell" {
 		t.Command = f.Args()
 	} else {

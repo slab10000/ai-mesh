@@ -47,7 +47,7 @@ func (s *Store) SSHArgs(p Peer, interactive bool) ([]string, error) {
 	if e := validateEndpoint(p.Endpoint); e != nil {
 		return nil, e
 	}
-	args := []string{"-p", strconv.Itoa(p.Endpoint.Port), "-l", p.Endpoint.User, "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "-o", "ForwardAgent=no", "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes", "-i", s.path("keys", "id_ed25519"), "-o", "UserKnownHostsFile=" + quote(s.path("known_hosts")) + " " + quote(filepath.Join(s.UserHome, ".ssh", "known_hosts"))}
+	args := []string{"-p", strconv.Itoa(p.Endpoint.Port), "-l", p.Endpoint.User, "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "-o", "ForwardAgent=no", "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-i", s.path("keys", "id_ed25519"), "-o", "UserKnownHostsFile=" + quote(s.path("known_hosts")) + " " + quote(filepath.Join(s.UserHome, ".ssh", "known_hosts"))}
 	if interactive {
 		args = append(args, "-tt")
 	}
@@ -207,7 +207,7 @@ func (s *Store) Handle(r Request) (any, error) {
 		if r.Task == nil {
 			return nil, errors.New("missing task")
 		}
-		return s.Accept(*r.Task)
+		return s.accept(*r.Task, true)
 	case "status":
 		return s.Job(r.ID)
 	case "logs":

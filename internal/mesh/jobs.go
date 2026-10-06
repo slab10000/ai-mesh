@@ -1,6 +1,7 @@
 package mesh
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,18 +17,19 @@ import (
 )
 
 type Task struct {
-	ID          string   `json:"id"`
-	Agent       string   `json:"agent"`
-	Prompt      string   `json:"prompt,omitempty"`
-	Command     []string `json:"command,omitempty"`
-	Inputs      []File   `json:"inputs,omitempty"`
-	OriginID    string   `json:"origin_id"`
-	ParentID    string   `json:"parent_id,omitempty"`
-	RootID      string   `json:"root_id"`
-	Depth       int      `json:"depth"`
-	MaxDepth    int      `json:"max_depth"`
-	MaxChildren int      `json:"max_children"`
-	Allowed     []string `json:"allowed,omitempty"`
+	ID              string   `json:"id"`
+	Agent           string   `json:"agent"`
+	Prompt          string   `json:"prompt,omitempty"`
+	Command         []string `json:"command,omitempty"`
+	Inputs          []File   `json:"inputs,omitempty"`
+	OriginID        string   `json:"origin_id"`
+	ParentID        string   `json:"parent_id,omitempty"`
+	RootID          string   `json:"root_id"`
+	Depth           int      `json:"depth"`
+	MaxDepth        int      `json:"max_depth"`
+	MaxChildren     int      `json:"max_children"`
+	Allowed         []string `json:"allowed,omitempty"`
+	RequiredOutputs []string `json:"required_outputs,omitempty"`
 }
 type Job struct {
 	Task        Task     `json:"task"`
@@ -38,6 +40,7 @@ type Job struct {
 	StartedAt   string   `json:"started_at,omitempty"`
 	FinishedAt  string   `json:"finished_at,omitempty"`
 	Error       string   `json:"error,omitempty"`
+	ErrorCode   string   `json:"error_code,omitempty"`
 	ExitCode    int      `json:"exit_code"`
 	PID         int      `json:"pid,omitempty"`
 	Children    []string `json:"children,omitempty"`
@@ -58,7 +61,7 @@ type LogChunk struct {
 }
 
 func terminal(state string) bool {
-	return state == "completed" || state == "failed" || state == "cancelled"
+	return state == "completed" || state == "failed" || state == "cancelled" || state == "needs_attention"
 }
 func (s *Store) jobPath(id string, parts ...string) string {
 	return s.path(append([]string{"jobs", id}, parts...)...)
@@ -85,6 +88,11 @@ func (s *Store) editJob(id string, fn func(*Job) error) error {
 }
 
 func validateTask(t Task, selfID string) error {
+	for _, name := range t.RequiredOutputs {
+		if !safeRelative(name) {
+			return fmt.Errorf("unsafe expected output %q", name)
+		}
+	}
 	if !validID.MatchString(t.ID) || !validID.MatchString(t.OriginID) || !validID.MatchString(t.RootID) {
 		return errors.New("invalid task identity")
 	}
@@ -119,6 +127,10 @@ func validateTask(t Task, selfID string) error {
 }
 
 func (s *Store) Accept(t Task) (Job, error) {
+	return s.accept(t, false)
+}
+
+func (s *Store) accept(t Task, fromPeer bool) (Job, error) {
 	c, e := s.Config()
 	if e != nil {
 		return Job{}, e
@@ -156,7 +168,9 @@ func (s *Store) Accept(t Task) (Job, error) {
 	if e != nil {
 		return result, e
 	}
-	if result.State == "queued" {
+	// Peer requests use the installed service's environment when available.
+	// Local CLI submissions retain their caller's environment and permissions.
+	if result.State == "queued" && (!fromPeer || !s.wakeJob(t.ID)) {
 		if e := s.spawnWorker(t.ID); e != nil {
 			return result, e
 		}
@@ -187,6 +201,9 @@ func (s *Store) spawnWorker(id string) error {
 
 func agentCommand(t Task, work string) (*exec.Cmd, error) {
 	prompt := t.Prompt + "\n\nMesh task: inputs are in ./inputs. Write all deliverable files in ./outputs. Report errors honestly. Use mesh jobs/status/watch/collect to manage children. The task's placement and delegation limits must be respected."
+	if len(t.RequiredOutputs) > 0 {
+		prompt += "\nRequired files inside outputs/: " + strings.Join(t.RequiredOutputs, ", ")
+	}
 	switch t.Agent {
 	case "shell":
 		if len(t.Command) == 0 {
@@ -332,6 +349,28 @@ func (s *Store) Worker(id string) error {
 	if cancelled {
 		return s.finishJob(id, "cancelled", -1, "cancelled")
 	}
+	message, errorCode := "", ""
+	if j.Task.Agent != "shell" {
+		message, errorCode = providerFailure(s.jobPath(id, "events.log"))
+	}
+	if message != "" {
+		state := "failed"
+		if errorCode == "authentication_required" || errorCode == "permission_required" || errorCode == "usage_limit" {
+			state = "needs_attention"
+		}
+		code := 0
+		if runErr != nil {
+			code = -1
+			var x *exec.ExitError
+			if errors.As(runErr, &x) {
+				code = x.ExitCode()
+			}
+		}
+		return s.editJob(id, func(job *Job) error {
+			job.State, job.Error, job.ErrorCode, job.ExitCode, job.FinishedAt, job.PID = state, message, errorCode, code, now(), 0
+			return nil
+		})
+	}
 	if runErr != nil {
 		code := -1
 		var x *exec.ExitError
@@ -340,10 +379,85 @@ func (s *Store) Worker(id string) error {
 		}
 		return s.finishJob(id, "failed", code, runErr.Error())
 	}
-	if _, e := outputFiles(filepath.Join(work, "outputs")); e != nil {
+	files, e := outputFiles(filepath.Join(work, "outputs"))
+	if e != nil {
 		return s.finishJob(id, "failed", -1, "invalid output bundle: "+e.Error())
 	}
+	for _, expected := range j.Task.RequiredOutputs {
+		found := false
+		for _, file := range files {
+			if file.Path == expected {
+				found = true
+			}
+		}
+		if !found {
+			return s.finishJob(id, "failed", 0, "required output was not produced: "+expected)
+		}
+	}
 	return s.finishJob(id, "completed", 0, "")
+}
+
+// Read provider-declared failures rather than making the user decode a raw
+// JSON stream. In particular, a Claude result may have subtype=success while
+// is_error=true. Successful assistant prose is never treated as an error.
+func providerFailure(path string) (string, string) {
+	f, e := os.Open(path)
+	if e != nil {
+		return "", ""
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 64<<10), 4<<20)
+	message := ""
+	for scanner.Scan() {
+		var event struct {
+			Type    string `json:"type"`
+			IsError bool   `json:"is_error"`
+			Result  string `json:"result"`
+			Message string `json:"message"`
+			Error   struct {
+				Message string `json:"message"`
+			} `json:"error"`
+			PermissionDenials []json.RawMessage `json:"permission_denials"`
+		}
+		if json.Unmarshal(scanner.Bytes(), &event) != nil {
+			continue
+		}
+		switch event.Type {
+		case "turn.completed":
+			message = ""
+		case "turn.failed":
+			message = event.Error.Message
+		case "error":
+			message = event.Message
+		case "result":
+			if event.IsError {
+				message = event.Result
+			} else {
+				message = ""
+			}
+			if len(event.PermissionDenials) > 0 {
+				message = "Agent tools were denied permission. Use an interactive Mesh session to approve the required actions, or configure the provider's normal permissions for this task."
+			}
+		}
+	}
+	if message == "" {
+		return "", ""
+	}
+	if len(message) > 8192 {
+		message = message[:8192]
+	}
+	lower := strings.ToLower(message)
+	code := "agent_failed"
+	switch {
+	case strings.Contains(lower, "authenticat"), strings.Contains(lower, "oauth"), strings.Contains(lower, "unauthorized"):
+		code = "authentication_required"
+	case strings.Contains(lower, "permission"), strings.Contains(lower, "denied"), strings.Contains(lower, "sandbox"):
+		code = "permission_required"
+	case strings.Contains(lower, "usage limit"), strings.Contains(lower, "rate limit"), strings.Contains(lower, "quota"):
+		code = "usage_limit"
+	}
+	return message, code
 }
 
 func (s *Store) finishJob(id, state string, code int, message string) error {

@@ -1,0 +1,175 @@
+{
+  "run": "20261006T033023Z",
+  "target": "green-lighthouse",
+  "origin": "macbook",
+  "results": [
+    {
+      "name": "discovery",
+      "status": "pass",
+      "target_found": true,
+      "tailscale_infrastructure_filtered": true,
+      "seconds": 0.03
+    },
+    {
+      "name": "live inventory",
+      "status": "pass",
+      "reachable": [
+        "macbook",
+        "green-lighthouse"
+      ],
+      "seconds": 0.17
+    },
+    {
+      "name": "files, traces, execution vs delivery",
+      "status": "pass",
+      "job": "34b0fbf867533b96f16f19d0e1c6ff7c",
+      "execution_before_collection": "completed",
+      "delivery_before_collection": "pending",
+      "delivery_after_collection": "delivered",
+      "sha256": "bdd2e8bef1e330bfa3f6087b07dbedc661e45e7151288130a63b0fb399742f35",
+      "seconds": 2.31
+    },
+    {
+      "name": "reverse work and nested delegation",
+      "status": "pass",
+      "parent_job": "5bcaac9ead3becc949c5f2ce11e70f2c",
+      "child_hostname": "Blass-MacBook-Pro-2.local",
+      "path": "server \u2192 Mac \u2192 server \u2192 Mac",
+      "seconds": 1.97
+    },
+    {
+      "name": "strict placement",
+      "status": "pass",
+      "job": "5076bb60eedba1dd68a84f9a0981e0cb",
+      "forbidden_child_rejected": true,
+      "seconds": 1.01
+    },
+    {
+      "name": "cancellation",
+      "status": "pass",
+      "job": "5ee5a5f365c2cfa0efeeb4a366900886",
+      "seconds": 1.27
+    },
+    {
+      "name": "failed command",
+      "status": "pass",
+      "job": "67304dd02993c0fc88d9efe7619a8088",
+      "exit_code": 23,
+      "seconds": 0.38
+    },
+    {
+      "name": "required deliverable",
+      "status": "pass",
+      "job": "7e45e8c43044d1023cfa231671b1ad5c",
+      "missing_output_detected": true,
+      "seconds": 0.36
+    },
+    {
+      "name": "overwrite protection",
+      "status": "pass",
+      "job": "8f94ce0634a21c77bf83954fe1ea535e",
+      "existing_file_preserved": true,
+      "seconds": 1.48
+    },
+    {
+      "name": "parallel jobs and queue",
+      "status": "pass",
+      "jobs": [
+        "43a9a1f1309c8a7c6ce17ab26d49c293",
+        "408d71a401fe07173ed77dd245b3ea2a",
+        "b8b7ba8f01240f3e0b886fb0a4c30915",
+        "d96d3bbce09c974492520f2f81a7c919"
+      ],
+      "simultaneous_submissions": 4,
+      "seconds": 5.17
+    },
+    {
+      "name": "lost SSH reply, retry without duplicates",
+      "status": "pass",
+      "job": "63219c24a2ba5821791d4ad659ab103d",
+      "remote_execution_count": 1,
+      "lost_submit_reply_recovered": true,
+      "seconds": 1.36
+    },
+    {
+      "name": "shared capabilities",
+      "status": "pass",
+      "shared_observation_added_and_removed": true,
+      "seconds": 1.18
+    },
+    {
+      "name": "automatic delivery",
+      "status": "pass",
+      "job": "b760c476e304bd76ae3dd2caf8c3c460",
+      "delivered_without_collect": true,
+      "seconds": 30.78
+    }
+  ],
+  "provider_tests": [
+    {
+      "name": "real codex",
+      "status": "pass",
+      "job": "ba6506f2eed12f85063f37114659b91c",
+      "input_and_context_verified": true,
+      "seconds": 73.77
+    },
+    {
+      "name": "reverse codex",
+      "status": "pass",
+      "job": "b4be3dea185c4b7f1ee8f7a2c95d7c1f",
+      "child_jobs": [
+        "ea04f8d388e23c2c8423cdee3735dc21"
+      ],
+      "real_agent_on_origin": true,
+      "seconds": 23.8
+    }
+  ],
+  "optional_claude_probe": {
+    "name": "real claude",
+    "status": "blocked",
+    "job": "f745ff2c15c71244a8d17e149f94cb0c",
+    "error_code": "authentication_required",
+    "reason": "Failed to authenticate: OAuth session expired and could not be refreshed",
+    "seconds": 1.42,
+    "acceptance_scope": false,
+    "note": "User selected Codex. No Claude setup is required."
+  },
+  "delivery_recovery": {
+    "job": "fc0f21fb0a74a9becd52cf07e1f7f00c",
+    "before": {
+      "execution": "completed",
+      "delivery": "pending"
+    },
+    "after": {
+      "execution": "completed",
+      "delivery": "delivered"
+    },
+    "automatic_collection": true
+  },
+  "terminal_recovery": {
+    "ssh_connection_interrupted": true,
+    "same_remote_shell_preserved": true,
+    "marker": "GREEN_42",
+    "session_group": "a0abdc5a41880d935ed8a4f8c23e9b4a"
+  },
+  "pdf": {
+    "job": "3a6b14f4d3f1ed0af439e0a3f4d1e94d",
+    "execution": "completed",
+    "delivery": "delivered",
+    "producer": "green-lighthouse",
+    "pages": 1,
+    "render_verified": true
+  },
+  "macos_background_access": {
+    "initial_result": "Reverse Codex startup stalled; TCC reported Full Disk Access denied for Mesh. Stalled test children were cancelled.",
+    "user_enabled_full_disk_access": true,
+    "verified_again_after_final_binary_upgrade": true,
+    "native_agent_permissions_preserved": true
+  },
+  "checks": {
+    "go_vet": "pass",
+    "go_test_race": "pass",
+    "python_compile": "pass",
+    "git_diff_check": "pass"
+  }
+}

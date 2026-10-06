@@ -5,11 +5,16 @@ cd "$mesh_root"
 sh scripts/build.sh
 mesh_install_dir="${MESH_INSTALL_DIR:-$HOME/.local/bin}"
 mkdir -p "$mesh_install_dir"
-cp bin/mesh "$mesh_install_dir/mesh"
-chmod 700 "$mesh_install_dir/mesh"
+mesh_stage=$(mktemp "$mesh_install_dir/.mesh-install.XXXXXX")
+trap 'rm -f "$mesh_stage"' EXIT HUP INT TERM
+cp bin/mesh "$mesh_stage"
+chmod 700 "$mesh_stage"
+mv "$mesh_stage" "$mesh_install_dir/mesh"
 for mesh_binary in dist/mesh-*; do
-  cp "$mesh_binary" "$mesh_install_dir/"
-  chmod 700 "$mesh_install_dir/$(basename "$mesh_binary")"
+  mesh_stage=$(mktemp "$mesh_install_dir/.mesh-install.XXXXXX")
+  cp "$mesh_binary" "$mesh_stage"
+  chmod 700 "$mesh_stage"
+  mv "$mesh_stage" "$mesh_install_dir/$(basename "$mesh_binary")"
 done
 printf 'Installed in %s. Ensure this directory is on your shell PATH.\n' "$mesh_install_dir"
 if [ "${1:-}" != '--no-setup' ]; then

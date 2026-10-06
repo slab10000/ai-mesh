@@ -26,6 +26,23 @@ func systemdQuote(s string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, `%`, `%%`, "\n", `\n`).Replace(s) + `"`
 }
 
+// launchd may finish removing an old job shortly after bootout returns.
+// Retry that upgrade race briefly; preserve the real diagnostic on failure.
+func bootstrapLaunchAgent(domain, file string) error {
+	var last error
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 250 * time.Millisecond)
+		}
+		out, err := exec.Command("launchctl", "bootstrap", domain, file).CombinedOutput()
+		if err == nil {
+			return nil
+		}
+		last = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return fmt.Errorf("launchd configuration saved but could not load in %s: %w", domain, last)
+}
+
 func serviceDefinition(platform, exe, root, home, pathEnv string) (string, error) {
 	switch platform {
 	case "darwin":
@@ -77,14 +94,19 @@ func (s *Store) Service(action string) error {
 		if runtime.GOOS == "darwin" {
 			domain := "gui/" + strconv.Itoa(os.Getuid())
 			_ = exec.Command("launchctl", "bootout", domain+"/dev.ai-mesh.agent").Run()
-			if e := run("launchctl", "bootstrap", domain, file); e != nil {
-				return fmt.Errorf("launchd configuration saved; user GUI session required to load it: %w", e)
+			if e := bootstrapLaunchAgent(domain, file); e != nil {
+				return e
 			}
 		} else {
 			if e := run("systemctl", "--user", "daemon-reload"); e != nil {
 				return fmt.Errorf("unit saved; no active systemd user manager (run mesh daemon manually): %w", e)
 			}
-			return run("systemctl", "--user", "enable", "--now", "ai-mesh.service")
+			if e := run("systemctl", "--user", "enable", "ai-mesh.service"); e != nil {
+				return e
+			}
+			// Enrollment may have atomically replaced the executable. Restart an
+			// existing service too, so it actually uses the installed version.
+			return run("systemctl", "--user", "restart", "ai-mesh.service")
 		}
 		return nil
 	}
@@ -219,6 +241,17 @@ func (s *Store) Daemon(interval time.Duration, once bool) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if !once {
+		listener, err := s.jobListener()
+		if err != nil {
+			// An unusually long custom MESH_HOME may exceed the platform's Unix
+			// socket limit. Keep periodic recovery and direct CLI dispatch usable.
+			fmt.Fprintln(os.Stderr, "job notifications unavailable; using periodic recovery:", err)
+		} else {
+			defer os.Remove(s.path("jobs.sock"))
+			defer listener.Close()
+		}
+	}
 	for {
 		issues := s.Tick()
 		for _, issue := range issues {
