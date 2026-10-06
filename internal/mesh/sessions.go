@@ -123,6 +123,9 @@ func (s *Store) StartSession(agent, target, project string, resume bool) error {
 			for _, w := range g.Windows {
 				if w.MachineID == p.ID && w.Agent == agent && (project == "" || project == w.Project) {
 					if s.tmux("has-session", "-t", "mesh-"+g.ID).Run() == nil {
+						if s.recordedTerminalExit("mesh-"+g.ID, w.ID) {
+							continue // Finished providers belong in the native resume picker.
+						}
 						if e := s.ensureController(g); e != nil {
 							return e
 						}
@@ -179,7 +182,9 @@ func (s *Store) createWindow(g SessionGroup, w SessionWindow, first bool) error 
 	p, _, _ := c.Resolve(w.MachineID)
 	label := p.Name + " / " + w.Agent
 	_ = s.tmuxRun("set-option", "-w", "-t", "mesh-"+g.ID+":"+w.ID, "automatic-rename", "off")
-	_ = s.tmuxRun("set-option", "-w", "-t", "mesh-"+g.ID+":"+w.ID, "remain-on-exit", "on")
+	if err := s.configureTerminalExit("mesh-"+g.ID, "mesh-"+g.ID+":"+w.ID); err != nil {
+		return err
+	}
 	_ = s.tmuxRun("set-option", "-w", "-t", "mesh-"+g.ID+":"+w.ID, "@mesh-label", label)
 	_ = s.tmuxRun("set-option", "-t", "mesh-"+g.ID, "status-left", " ai-mesh | #{@mesh-label} ")
 	_ = s.tmuxRun("set-option", "-t", "mesh-"+g.ID, "status-left-length", "80")
@@ -193,18 +198,21 @@ func (s *Store) createWindow(g SessionGroup, w SessionWindow, first bool) error 
 			return e
 		}
 	}
-	// Set remain-on-exit before the agent can exit, so startup/authentication
-	// errors remain visible even when the provider quits immediately.
+	// Install exit handling before the agent starts, including immediate
+	// startup failures. Its final output is replayed outside the frontend.
 	return s.tmuxRun("respawn-pane", "-k", "-t", "mesh-"+g.ID+":"+w.ID, command)
 }
 
 func (s *Store) attach(id string) error {
+	if err := s.RefreshTerminalExit("mesh-" + id); err != nil {
+		return err
+	}
 	cmd := s.tmux("attach-session", "-t", "mesh-"+id)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = childEnv(nil)
-	return cmd.Run()
+	return interactiveResult(cmd.Run())
 }
 
 func (s *Store) ensureController(g SessionGroup) error {
@@ -445,6 +453,7 @@ func controlCall(socket, token, path string, value any) ([]byte, error) {
 }
 
 func (s *Store) Pane(groupID, windowID string) error {
+	s.clearTerminalFinished()
 	g, e := s.session(groupID)
 	if e != nil {
 		return e
@@ -485,13 +494,25 @@ func (s *Store) Pane(groupID, windowID string) error {
 	if e != nil {
 		return e
 	}
-	args = append(args, "-o", "ExitOnForwardFailure=yes", "-o", "StreamLocalBindUnlink=yes", "-R", socket+":"+g.Socket, p.Endpoint.Host, remoteMesh(p, "_remote-session", remoteID))
+	args = append(args, "-o", "LogLevel=ERROR", "-o", "ExitOnForwardFailure=yes", "-o", "StreamLocalBindUnlink=yes", "-R", socket+":"+g.Socket, p.Endpoint.Host, remoteMesh(p, "_remote-session", remoteID))
 	cmd := exec.Command("ssh", args...)
 	cmd.Env = childEnv(nil)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	err := interactiveResult(cmd.Run())
+	signaled := false
+	if cmd.ProcessState != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			signaled = status.Signaled()
+		}
+	}
+	if !signaled && interactiveCode(err) != 255 {
+		s.markTerminalFinished(err)
+	}
+	// SSH 255 or a killed SSH process is uncertain. The exit hook checks the
+	// remote runtime before treating a lost transport as an agent exit.
+	return err
 }
 
 func (s *Store) prepareSession(spec RemoteSession) error {
@@ -539,16 +560,28 @@ func (s *Store) RemoteSession(id string) error {
 		return errors.New("install tmux on this computer to preserve interactive sessions")
 	}
 	name := "remote-" + id
-	if s.tmux("has-session", "-t", name).Run() != nil {
+	exists := s.tmux("has-session", "-t", name).Run() == nil
+	dead, _ := s.tmux("display-message", "-p", "-t", name, "#{pane_dead}").Output()
+	if !exists || strings.TrimSpace(string(dead)) == "1" {
 		exe, e := executable()
 		if e != nil {
 			return e
 		}
 		command := shellJoin("env", "MESH_HOME="+s.Root, exe, "_native", id)
-		if e := s.tmuxRun("new-session", "-d", "-s", name, command); e != nil {
+		if !exists {
+			if e := s.tmuxRun("new-session", "-d", "-s", name, "sleep 86400"); e != nil {
+				return e
+			}
+		}
+		if e := s.configureTerminalExit(name, name); e != nil {
 			return e
 		}
-		_ = s.tmuxRun("set-option", "-t", name, "status-left", " "+c.Self.Name+" | "+spec.Agent+" ")
+		if e := s.tmuxRun("respawn-pane", "-k", "-t", name, command); e != nil {
+			return e
+		}
+	}
+	if e := s.RefreshTerminalExit(name); e != nil {
+		return e
 	}
 	// The originating Mesh terminal already labels the active machine. Avoid
 	// a second, truncated tmux status bar inside the remote agent's viewport.
@@ -558,7 +591,7 @@ func (s *Store) RemoteSession(id string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return interactiveResult(cmd.Run())
 }
 
 func (s *Store) Native(id string) error {
@@ -571,7 +604,9 @@ func (s *Store) Native(id string) error {
 	}
 	return s.launchAgent(spec.Agent, spec.Project, spec.Resume, spec.Socket, spec.Token, spec.Window, spec.Group, spec.HandoffID)
 }
-func (s *Store) launchAgent(agent, project string, resume bool, socket, token, window, group, handoffID string) error {
+func (s *Store) launchAgent(agent, project string, resume bool, socket, token, window, group, handoffID string) (result error) {
+	s.clearTerminalFinished()
+	defer func() { s.markTerminalFinished(result) }()
 	if !supportedInteractive(agent) {
 		return errors.New("unsupported agent")
 	}
@@ -665,7 +700,7 @@ func (s *Store) launchAgent(agent, project string, resume bool, socket, token, w
 	if group != "" {
 		_ = writeJSON(s.runtimePath(group, window), runtime)
 	}
-	return cmd.Wait()
+	return interactiveResult(cmd.Wait())
 }
 
 // Keyboard navigation is handled by the local Mesh controller, independently

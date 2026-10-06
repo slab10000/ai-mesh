@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,6 +26,10 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-test.") {
 		if e := Main(os.Args[1:]); e != nil {
+			var exit *InteractiveExit
+			if errors.As(e, &exit) {
+				os.Exit(exit.Code)
+			}
 			fmt.Fprintln(os.Stderr, e)
 			os.Exit(1)
 		}
@@ -153,11 +158,49 @@ env.pop('MESH_JOB_ID', None)
 if '-tt' in sys.argv:
     if os.path.exists(os.path.join(peer['root'], 'attach-offline')):
         sys.exit(255)
-    import pty
+    import pty, select, tty, termios
     os.environ.clear()
     os.environ.update(env)
     os.environ['TERM'] = 'xterm-256color'
-    sys.exit(os.waitstatus_to_exitcode(pty.spawn(['/bin/sh', '-c', command])))
+    # Reap the SSH command itself, even if a persistent tmux server retains
+    # a slave-PTY descriptor. pty.spawn waits for every descriptor to close.
+    pid, master = pty.fork()
+    if pid == 0:
+        os.execv('/bin/sh', ['/bin/sh', '-c', command])
+    old = termios.tcgetattr(0)
+    tty.setraw(0)
+    try:
+        while True:
+            if os.path.exists(os.path.join(peer['root'], 'disconnect')):
+                import signal
+                os.kill(os.getpid(), signal.SIGTERM)
+            ready, _, _ = select.select([master, 0], [], [], .05)
+            if master in ready:
+                try:
+                    data = os.read(master, 65536)
+                except OSError:
+                    break
+                if not data:
+                    break
+                os.write(1, data)
+            if 0 in ready:
+                data = os.read(0, 65536)
+                if data:
+                    os.write(master, data)
+            exited, status = os.waitpid(pid, os.WNOHANG)
+            if exited:
+                # Drain bytes already queued before the command exited.
+                while select.select([master], [], [], .05)[0]:
+                    try: data = os.read(master, 65536)
+                    except OSError: break
+                    if not data: break
+                    os.write(1, data)
+                sys.exit(os.waitstatus_to_exitcode(status))
+        _, status = os.waitpid(pid, 0)
+        sys.exit(os.waitstatus_to_exitcode(status))
+    finally:
+        termios.tcsetattr(0, termios.TCSANOW, old)
+        os.close(master)
 result = subprocess.run(command, shell=True, env=env, input=payload, stdout=subprocess.PIPE)
 drop = os.path.join(peer['root'], 'drop-reply')
 if os.path.exists(drop):

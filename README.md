@@ -229,6 +229,8 @@ Inside that terminal, press **Ctrl-b**, release both keys, then press:
 
 The status bar shows the active computer and agent. The first visit starts a conversation; revisiting restores its live process and chat. Each computer needs tmux and the chosen agent. Agents can also invoke `mesh switch homelab` and `mesh back`, subject to their normal permissions. Provider approval and new-workspace trust prompts still apply.
 
+When the active agent exits, Mesh returns to your shell and keeps the agent's own exit message, including its resume command. Ctrl-C that merely interrupts a turn leaves the chat open; other live conversations keep running.
+
 Use `mesh session` to identify the current conversation. Cached `MESH_*` shell variables may belong to an older session. A switch requires an attached Mesh terminal and a ready destination; a detached terminal or failed connection returns an error.
 
 To begin directly in an existing remote project:

@@ -138,6 +138,8 @@ Press **Ctrl-b, release, then m** for the computer menu, or **Ctrl-b, release, t
 
 The current terminal session is preserved in tmux. Mesh switches the active window, keeping a machine/agent label visible. `Ctrl-b d` detaches the local terminal without stopping the sessions. After an SSH connection drops, selecting the same destination reconnects its preserved remote session. `--resume` reattaches a matching live Mesh session; if none exists, Codex/Claude use their native resume picker.
 
+When the visible agent exits, Mesh returns to the calling shell and prints the agent's final terminal output, including any native resume command. This applies to local and SSH sessions and preserves the provider's exit status. Ctrl-C that only interrupts an agent turn does not close Mesh; the provider decides when it actually exits. Exiting a hidden conversation does not close another conversation's frontend. Other live conversations and background jobs remain running. A lost SSH connection is kept separate from a confirmed agent exit.
+
 Ctrl-b m and `mesh switch` show the destination chat in that same terminal after verifying that its agent and connection are ready. Revisiting a computer restores its live conversation without summarizing or sending context. The first visit creates a conversation if none exists in this Mesh group. Agent-specific `/SelectComputer` slash commands are not installed in this version; `mesh connect` provides the terminal picker and the installed instructions support natural-language switching.
 
 Context transfer is a separate command:

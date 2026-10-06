@@ -168,3 +168,13 @@ Validation: `make check` passed (`go vet`, full race-enabled suite, 94.238 secon
 ![Same terminal after handoff, showing server hostname and received file](evidence/12-visible-handoff-on-server.jpg)
 
 ![Returning to the original Mac chat, with the completed handoff still present](evidence/13-return-to-same-mac-chat.jpg)
+
+## Returning to the shell after agent exit — October 6, 2026
+
+A finished provider previously left the user looking at a dead tmux pane. Mesh now restores the calling terminal and replays the provider's final visible output, including native resume instructions, while preserving its exit status. The exit handling is shared across providers and local/SSH sessions; it does not infer an exit from the Ctrl-C key or parse conversation IDs. Other live conversations remain running. Finished conversations are excluded when looking for a live session to reattach with `--resume`.
+
+The regression suite uses real PTYs and tmux with isolated Codex, Claude, and Gemini fixtures. It checks a turn interrupt versus an actual exit, exact resume-message forwarding after terminal restoration, local and remote startup failures with nonzero exit codes, hidden conversation exits, multiple attached session groups, manual detach and reattachment, native resume after completion, upgrading an already-finished pane, and killing/reconnecting the SSH transport without stopping the provider. The SSH fixture waits for its command process to exit instead of requiring every descendant to close the PTY. Existing connection-recovery and handoff tests remain covered by the full race suite.
+
+Live checks used the installed Mac and Linux peer builds. Codex 0.160.1 on the Mac and 0.155.1 on Linux returned to the calling Mac shell with their native resume commands, through both native quit commands and Ctrl-C. Claude Code 2.1.261 on the Mac also exited Mesh through `/exit` and its two-Ctrl-C shortcut. Claude was not logged in, so this checks terminal exit only; successful Claude inference and a real Claude conversation-resume footer are not claimed. Gemini exit behavior is fixture-tested, not a real-provider validation. Browser-rendered PTY captures used the providers' quit commands; direct controlling-PTY checks supplied Ctrl-C bytes separately.
+
+The original stuck terminal was released by refreshing its exit hooks; its existing remote conversation stayed alive. Live multi-terminal testing also caught and fixed tmux resolving an exit check against another attached session. Final validation runs `make check` (vet and the race-enabled suite) and `make dist` (macOS/Linux, arm64/amd64). Local screenshots and raw recordings are saved under the ignored `artifacts/e2e/` directory.

@@ -476,6 +476,17 @@ func Main(args []string) error {
 			return e
 		}
 		return s.SessionControl(args[0], args[1], args[2], false)
+	case "_terminal-exit", "_terminal-refresh", "_exit-output":
+		if e := need(args, 1, "missing terminal identity"); e != nil {
+			return e
+		}
+		if command == "_exit-output" {
+			return s.ExitOutput(args[0])
+		}
+		if command == "_terminal-refresh" {
+			return s.RefreshTerminalExit(args[0])
+		}
+		return s.TerminalExited(args[0])
 	case "_pane":
 		if e := need(args, 2, "missing pane identity"); e != nil {
 			return e
