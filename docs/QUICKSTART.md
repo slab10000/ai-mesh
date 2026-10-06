@@ -1,110 +1,95 @@
-# ai-mesh: short usage guide
+# Quickstart: your first remote job
 
-Your Mac (`macbook`) and `blas@green-lighthouse` are enrolled and can both submit work to each other. Both have the Mesh background service. Codex has been tested successfully in both directions. No Claude installation or login is needed for these workflows.
+This guide uses a local computer named `laptop` and an SSH destination named `homelab`, accessed as `alice`. Replace those names with your own. See the [README prerequisites](../README.md#prerequisites) for supported platforms and tools.
 
-## Switch computers in your terminal
+## 1. Install locally
+
+On the computer that will submit work, with Git and Go 1.24+ installed:
 
 ```sh
+git clone https://github.com/slab10000/ai-mesh.git
+cd ai-mesh
+sh scripts/install.sh --no-setup
 export PATH="$HOME/.local/bin:$PATH"
-mesh codex
+mesh doctor
 ```
 
-Inside that terminal:
+Add the PATH line to your shell startup file for future terminals. Missing configuration is expected before initialization. The installer includes compiled destination binaries; the remote computer does not need Go.
 
-| Keys | Result |
-| --- | --- |
-| Ctrl-b, release, then **m** | Show computers; choose one by number |
-| Ctrl-b, release, then **b** | Return to your previous session |
-| Ctrl-b, release, then **d** | Detach while keeping sessions alive |
+## 2. Connect one computer
 
-The status bar names the computer and agent you are using. Choosing a computer immediately shows its live agent chat in the **same terminal**, with no SSH commands or second terminal to open. Once visited, Mac → server → Mac → server returns to the same conversations and running processes. The menu never summarizes or sends context. The first visit starts a conversation if this Mesh group does not already have one there.
-
-These work too:
+First confirm your existing account can connect over SSH:
 
 ```sh
-mesh codex green-lighthouse --project /home/blas/ai-mesh-e2e/project
-mesh codex --resume
-mesh shell                   # Plain terminal switching without an AI provider
-mesh connect                 # Initial computer/agent picker
-mesh sessions                # Saved groups
+ssh alice@homelab 'uname -s'
 ```
 
-An agent can run `mesh switch green-lighthouse` or `mesh back`. Its normal permissions still apply: remote Codex required permission to access the control socket during our test. The keyboard controls work directly through Mesh. After an SSH drop, select the destination again to reconnect its preserved remote session. After detaching, use the same agent/project with `--resume`.
-
-## Continue current work on another computer
-
-Context transfer is a separate action. Inside `mesh codex`, say:
-
-> Continue this task on green-lighthouse, taking the relevant context and files with you.
-
-Installed agent instructions explain how to check reachable computers, write a concise brief of the objective, decisions, constraints, completed work, and next steps, then run:
+Then initialize an outgoing-only laptop and enroll the destination:
 
 ```sh
-mesh handoff green-lighthouse --context BRIEF.md --input report-notes.txt
-```
-
-The brief and selected files arrive in `.mesh/handoffs/ID/` inside the destination workspace. An existing conversation keeps its workspace; a new one defaults to `~/.ai-mesh/projects/SESSION_ID`. `--project DIR` chooses a different workspace; `--input` can be repeated. Existing project files are not replaced.
-
-Mesh changes the visible terminal automatically and leaves the source agent alive. A new destination agent starts with a prompt to read its inbox and continue. An already-running destination keeps its conversation and reads new context **at its next user turn**; Mesh does not interrupt it or type into a busy prompt. Use the menu or `mesh back` to revisit either conversation without another transfer.
-
-A successful handoff reports `terminal_switched: true`: Mesh has verified the destination agent, SSH attachment, and visible terminal window. A transfer without a working terminal switch is reported as unconfirmed, with the handoff ID for retry. Cached `MESH_*` shell variables can be stale; `mesh session` resolves the explicit conversation binding, with native process ancestry as a fallback.
-
-Agents inspect their identity with `mesh session`, read pending context with `mesh inbox --read`, then acknowledge it with `mesh inbox ack ID`. Acknowledgment writes `READ.json` beside the brief, requiring only normal workspace write access. An uncertain handoff reports an ID: retry the same command with `--id ID` to avoid duplication. Handoffs copy explicit summaries and selected files, not hidden model state or provider credentials. Files produced during an interactive handoff stay in its workspace; use `mesh run` below when automatic return delivery is needed.
-
-After upgrading, run `mesh integrate` on both computers and start a new Mesh terminal to load the new controller and instructions. Already-running conversations remain preserved, but older controllers do not acquire new commands in place. This feature controls the native CLI terminal; it does not replace a Codex desktop chat. Normal provider trust and approval prompts remain enabled. Process preservation requires the agent and its host to remain running; a reboot or explicitly exiting the agent is different from switching or detaching.
-
-## Send a task and receive files here
-
-From this repository on the Mac:
-
-```sh
+mesh init --name laptop --incoming=false
+mesh integrate
+mesh service install
+mesh enroll homelab --user alice --name homelab
 mesh machines --check
-mesh run --on green-lighthouse --agent codex \
+```
+
+The destination should be **reachable**. Enrollment installs Mesh, integrates detected agents, and installs the destination's user service. SSH handles initial authentication and host-key verification. Mesh keys grant access to the selected account; enroll computers and accounts you trust.
+
+The laptop can retrieve results over outgoing SSH without accepting incoming connections. `init` keeps existing configuration if you have already set up this account. Prefer a guided flow? Use `mesh setup` instead of the initialization and enrollment commands above.
+
+## 3. Return a file
+
+```sh
+mesh run --on homelab --agent shell \
+  --output ./results/hello --expect host.txt --only --wait -- \
+  sh -c 'hostname > "$MESH_OUTPUT_DIR/host.txt"'
+
+cat ./results/hello/host.txt
+```
+
+The file should contain the destination's hostname. No AI provider or tmux is needed for this check. `--only` prevents further delegation; `--wait` follows execution and retrieves successful results. Use a fresh output directory if repeating a task will produce different bytes.
+
+## 4. Try an agent job
+
+With Codex authenticated and Python 3 installed on the destination:
+
+```sh
+mesh run --on homelab --agent codex \
   --input examples/pdf-instructions.md \
   --context examples/handoff.md \
   --output ./results/pdf \
-  --expect remote-report.pdf --expect generated-on.txt \
-  --only --wait \
+  --expect remote-report.pdf --expect generate_pdf.py \
+  --expect generated-on.txt --only --wait \
   'Read inputs/pdf-instructions.md and produce all requested outputs.'
 ```
 
-Mesh copies the selected input and brief, starts Codex on the server using its existing login, streams its output, and retrieves the files. `--only` prevents further delegation. `--expect` prevents a missing deliverable from being reported as a completed task. The verified example PDF and its generator are in [evidence](evidence/).
+Open `results/pdf/remote-report.pdf`. Its generator and hostname evidence should be beside it. This uses the destination's provider login and normal permissions. Use `--agent claude` to select an authenticated Claude Code installation instead.
 
-Omit `--wait` to get a persistent job ID immediately:
+## 5. Visit a live conversation
 
-```sh
-mesh status JOB_ID
-mesh watch JOB_ID
-mesh collect JOB_ID
-mesh cancel JOB_ID
-```
-
-Execution and delivery are separate. A job can be `completed` while delivery is `pending`. The Mac service retrieves its outputs when communication resumes. `mesh collect` requests delivery immediately. After an uncertain submission, use `mesh retry JOB_ID`; it reuses the identity and does not execute a duplicate task.
-
-For a command without an AI provider:
+Install tmux and the selected agent on both computers, restart agents after integration, then launch:
 
 ```sh
-mesh run --on green-lighthouse --agent shell --output ./results/host --wait -- \
-  sh -c 'hostname > outputs/host.txt'
+mesh codex
 ```
 
-## How the pieces fit
+Press **Ctrl-b**, release, then **m** to select a computer. **Ctrl-b b** returns to the previous conversation; **Ctrl-b d** detaches while keeping sessions alive. Use `mesh shell` to try these controls without an AI provider.
 
-Each account has its own Mesh identity, SSH key, job records, and machine description under `~/.ai-mesh`. OpenSSH carries commands, files, status, and logs. The service publishes descriptions once at enrollment and then when their file changes, and collects task results. It does not repeatedly exchange unchanged specs. Pending description updates are retried when a peer is reachable again. tmux preserves live terminal sessions. No permanent master computer or hosted Mesh account is involved.
+Each conversation keeps its own history. To carry current work along, ask the agent:
 
-Every machine writes its own description. Agents can record verified reusable capabilities with `mesh capability add`; updates propagate to peers. The computer running a task can submit child tasks to another enrolled computer, subject to placement/delegation limits. The agent or script coordinates these children; automatic GPU scheduling is not implemented.
+> Continue this task on homelab, taking the relevant context and files with you.
 
-The Mac accepts Mesh SSH on **its Tailscale IP, port 2222**, using a user LaunchAgent and enrolled Mesh keys only. System-wide Remote Login remains off. Inspect it with `mesh ssh-server status`; remove it with `mesh ssh-server uninstall`. The Mac and Mesh services run while your user login is available. On the server, systemd user lingering is currently off; survival across full logout/reboot is not promised.
+The agent prepares a brief and invokes `mesh handoff`. Success includes `terminal_switched: true` only after Mesh verifies the destination agent, its terminal connection, and the displayed window. If context arrives but switching fails, restore connectivity and retry the same command with the reported `--id ID`.
 
-## Repeating the tests
+A new destination conversation starts with the brief; an existing conversation reads it on its next user turn. The source conversation remains alive. Normal provider approval and workspace trust prompts still apply.
 
-Run the opt-in real-machine suite from this checkout:
+Use `mesh session` for the current conversation's identity; cached `MESH_*` variables can be stale. Switching needs an attached Mesh terminal. After an upgrade, refresh integration on both computers and start a new Mesh terminal to load the new controller and launch settings.
 
-```sh
-python3 scripts/e2e.py --on green-lighthouse --origin macbook
-python3 scripts/e2e.py --on green-lighthouse --origin macbook --providers
-```
+## Next steps
 
-The second command makes real Codex requests in both directions. Claude testing is separate and optional (`--claude`). The suite writes a dated JSON report under `artifacts/e2e/`. Services should be running, and the reverse-delegation test requires incoming access on the Mac. Background Codex startup on this Mac also required granting Full Disk Access to `/Users/blasmorenolaguna/.local/bin/mesh` in System Settings → Privacy & Security. This was granted and the reverse test passed. Native Codex permissions remain enabled. It uses generated test files and does not enroll or remove peers.
-
-See [validation and screenshots](VALIDATION.md) for the actual results and remaining boundaries.
+- [Run jobs asynchronously, inspect status, and recover delivery](../README.md#3-keep-working-while-a-job-runs).
+- [Try a file round trip or summarize your own notes](../examples/README.md).
+- [Learn enrollment, permissions, services, and cleanup](REFERENCE.md).
+- [Validate your two computers step by step](TESTING.md).
+- [Inspect recorded real-machine results and screenshots](VALIDATION.md).

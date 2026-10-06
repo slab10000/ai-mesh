@@ -2,6 +2,8 @@
 
 Tested on October 5, 2026, America/Chicago (UTC report timestamps are October 6). This records actual work on the Mac and `blas@green-lighthouse`, in addition to the isolated Go tests.
 
+Results below are chronological. The [visible handoff regression and follow-up](#visible-handoff-regression--october-6-2026) is the latest validation of conversation routing and confirmed switching; it documents a gap found after the earlier acceptance run. Earlier screenshots remain evidence of their respective runs.
+
 ## Result
 
 **15/15 final acceptance scenarios passed: 13 command workflows plus real Codex in both directions.** Real remote Codex input/context handoff and PDF generation passed. Native Codex and shell switching, return, session preservation, detach/resume, and SSH reconnection were exercised. Real reverse Codex delegation (server → Mac → server → Mac) also passed after the user enabled Full Disk Access for Mesh. Codex is the requested provider; Claude is optional and outside the final acceptance scope.
@@ -161,7 +163,7 @@ The normal provider controls were exercised: Codex requested approval to check n
 
 The user's already-open Mac and server conversations were repaired in place by binding their own cached shell snapshots to their existing Mesh windows. Their controllers were updated without restarting their agents (Mac PID `47740`, server PID `797416`). New launches receive the binding automatically.
 
-Validation: `make check` passed (`go vet`, full race-enabled suite, 94.238 seconds). Regression tests include a shared executor with no provider ancestry, stale variables with two attached groups, restricted process lookup, no attached terminal, successful staging followed by failed interactive SSH, retry recovery, context acknowledgments, and unchanged provider PIDs. All four macOS/Linux build targets compiled. See [the reproducible checklist](TESTING.md#10-verify-a-visible-handoff-with-multiple-live-sessions) and [the structured evidence](evidence/visible-handoff-fix.json).
+Validation: `make check` passed (`go vet`, full race-enabled suite, 94.238 seconds). Regression tests include a shared executor with no provider ancestry, stale variables with two attached groups, restricted process lookup, no attached terminal, successful staging followed by failed interactive SSH, retry recovery, context acknowledgments, and unchanged provider PIDs. All four macOS/Linux build targets compiled. See [the reproducible checklist](TESTING.md#11-verify-a-visible-handoff-with-multiple-live-sessions) and [the structured evidence](evidence/visible-handoff-fix.json).
 
 ![Same terminal after handoff, showing server hostname and received file](evidence/12-visible-handoff-on-server.jpg)
 

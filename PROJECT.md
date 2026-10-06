@@ -4,7 +4,7 @@ ai-mesh lets people use their existing AI agents across the computers they are a
 
 The experience should feel like working with one connected set of computers: choose where to work, delegate a task, switch into a remote agent session, or let an agent distribute suitable work across available machines. Mesh handles the connections, session continuity, context handoffs, progress, and return of results.
 
-This document captures the complete product idea and intended user experience. It is not an implementation plan, delivery schedule, or claim that these capabilities already exist. The project and its repository are private for now.
+This document captures the complete product idea and intended user experience. It is not an implementation plan, delivery schedule, or claim that every capability described here already exists. See [README.md](README.md) for the current implementation, installation, and tutorials.
 
 ## Why this project exists
 
@@ -284,6 +284,6 @@ The product direction is established, while several details remain open for late
 - Membership changes, access removal, and conflict handling while computers are disconnected.
 - How automatic placement and delegation limits are presented to the user.
 - The scope and behavior of future shared project memory and replicated caches.
-- Whether distribution eventually becomes open source, hosted, or a combination; the project remains private for now.
+- Packaging and release distribution as the project prepares for open-source publication, and whether optional hosted services would be useful later.
 
 These questions refine the product. Its central idea remains that a person can work naturally with their usual agents while their authorized computers cooperate to carry out the work and return the results wherever the person needs them.
