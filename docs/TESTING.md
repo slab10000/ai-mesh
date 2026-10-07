@@ -17,6 +17,8 @@ mesh doctor
 
 This builds and installs the native executable and destination binaries. `--no-setup` postpones enrollment, agent instructions, and services until you request them below. Go 1.24+ is needed for the build. Install tmux on both computers before testing interactive sessions.
 
+If this account already has Mesh configuration, the installer also repairs the managed aliases in `~/.ssh/config`, including with `--no-setup`. This local repair does not contact peers or change access. Before changing a nonempty SSH configuration, Mesh saves a `.pre-mesh` backup if one does not already exist.
+
 ## 2. Check your existing SSH access
 
 ```sh
@@ -47,6 +49,28 @@ Expected: two distinct machine IDs, a successful remote check, and the server's 
 This keeps the Mac outgoing-only. It still receives results by fetching them over its outgoing SSH connection. If you later want the server to initiate jobs on the Mac, first make your Mac account reachable through SSH, then run `mesh access --incoming=true`. Use the setup wizard initially if you want to choose a reachable local address interactively.
 
 If the Mac was initialized before this guide, `init` keeps its existing identity and settings. Inspect `mesh doctor` and change access with `mesh access` when needed.
+
+### Verify the generated SSH alias
+
+Inspect the effective SSH configuration without connecting, then try the alias:
+
+```sh
+ssh -G homelab
+ssh homelab hostname
+```
+
+Check that `hostname`, `user`, and `port` match the enrolled destination, including any nonstandard port. `identityfile` should include this account's Mesh key, and `userknownhostsfile` should include Mesh's trusted host-key file. The second command should print the destination's hostname without requiring explicit user, port, or identity flags.
+
+Run the local repair and inspect the configuration again:
+
+```sh
+mesh ssh-config
+ssh -G homelab
+```
+
+Expected: the same effective connection settings, no duplicate managed block, and unchanged unrelated SSH configuration. If enrollment used an existing alias with the same name, its original `HostName` mapping should still resolve. Only peers accepting incoming access receive managed aliases; this outgoing-only Mac does not become an incoming destination as a side effect.
+
+For an upgrade check on an existing installation, repeat `sh scripts/install.sh --no-setup` and verify the alias again. The installer should perform the same repair automatically. There is no need to re-enroll peers just to regenerate local aliases.
 
 ## 4. Test file transport without an AI provider
 
@@ -127,6 +151,19 @@ Inside that Codex conversation, ask it to run `mesh switch homelab`. Expected: t
 You can start directly on the server with `mesh claude homelab`, choose through `mesh connect`, or use `--project '~/existing/project'`. Destination project paths must exist. `Ctrl-b d` detaches; launch again with `--resume` to reconnect.
 
 This test needs tmux on both sides and SSH Unix-socket forwarding. An agent sandbox may require permission to call the Mesh controller socket. A normal terminal outside the Mesh-launched session lacks that session's controller environment and cannot issue its switch commands. Switching does not transfer the conversation automatically.
+
+### Verify exit and resume locally and over SSH
+
+Use disposable test conversations so you can quit the active agent without losing work. Run each check once with `mesh codex` and once with `mesh codex homelab`; use the same project path when resuming. Repeat with another provider only if it is installed and you intend to test it.
+
+1. Detach with **Ctrl-b d**, then launch the same agent and destination with `--resume`. The live conversation should reattach with the same provider PID, as reported by `mesh session`.
+2. Use the provider's normal quit command. Mesh should return to the calling shell and show the provider's final output, including any native resume instructions, without leaving a dead tmux pane on screen.
+3. Run `echo $?` immediately after Mesh returns. It should match the provider's exit status. For a deliberately induced nonzero exit, use a disposable fixture rather than changing a real provider's credentials.
+4. Launch the same agent and destination with `--resume` again. An exited provider should use the native resume picker instead of reattaching the finished pane. Do not expect the new provider process to retain the old PID.
+5. Separately exercise the provider's Ctrl-C behavior. A keypress that only interrupts a turn must leave the chat open; when the provider actually exits, Mesh should return to the shell. Mesh does not decide that every Ctrl-C means quit.
+6. Keep a second test conversation alive and verify that exiting the visible conversation leaves the other provider running. Keep a transport-disconnection test separate: reconnecting after an SSH interruption should preserve a still-running remote agent.
+
+The isolated regression suite additionally covers hidden conversation exits, startup failures, multiple attached frontends, and refreshing exit hooks on older panes. See the [recorded exit validation](VALIDATION.md#returning-to-the-shell-after-agent-exit--october-6-2026) for the distinction between real-provider checks and fixture coverage.
 
 ## 9. Separate navigation from context transfer
 

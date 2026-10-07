@@ -24,8 +24,10 @@ make dist
 | `cmd/mesh/` | Executable entry point. |
 | `internal/mesh/cli.go` | Command parsing, help, and setup wizard. |
 | `internal/mesh/enroll.go`, `transport.go` | Account enrollment, SSH access, and peer transport. |
+| `internal/mesh/ssh_config.go` | Managed SSH client aliases and local repair during installation or upgrades. |
 | `internal/mesh/jobs.go`, `dispatch.go`, `files.go` | Job lifecycle, provider adapters, scheduling, and checked file transfer. |
 | `internal/mesh/sessions.go`, `session_identity.go`, `session_display.go`, `handoff.go` | tmux sessions, conversation identity, verified visible switching, and explicit context handoff. |
+| `internal/mesh/session_exit.go` | Return to the calling shell on provider exit, replay final output, and preserve exit status. |
 | `internal/mesh/inventory*.go` | Machine descriptions, capabilities, and publication. |
 | `internal/mesh/service.go`, `pending.go` | User services and retrying pending work. |
 | `internal/mesh/*_test.go` | Isolated regression and integration tests. |

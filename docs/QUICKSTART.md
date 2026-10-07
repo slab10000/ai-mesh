@@ -16,6 +16,8 @@ mesh doctor
 
 Add the PATH line to your shell startup file for future terminals. Missing configuration is expected before initialization. The installer includes compiled destination binaries; the remote computer does not need Go.
 
+On an existing Mesh installation, the installer also repairs its local SSH aliases, even with `--no-setup`. Enrollment, agent integration, and service installation remain separate from that repair.
+
 ## 2. Connect one computer
 
 First confirm your existing account can connect over SSH:
@@ -37,6 +39,18 @@ mesh machines --check
 The destination should be **reachable**. Enrollment installs Mesh, integrates detected agents, and installs the destination's user service. SSH handles initial authentication and host-key verification. Mesh keys grant access to the selected account; enroll computers and accounts you trust.
 
 The laptop can retrieve results over outgoing SSH without accepting incoming connections. `init` keeps existing configuration if you have already set up this account. Prefer a guided flow? Use `mesh setup` instead of the initialization and enrollment commands above.
+
+### Connect directly with SSH
+
+Enrollment also creates a local SSH alias for each incoming-enabled peer. You can use its Mesh name without repeating the account, port, or key:
+
+```sh
+ssh homelab hostname
+```
+
+The command should print the destination's hostname. Mesh manages these aliases in a marked block in `~/.ssh/config`, preserving the surrounding configuration. The alias uses the enrolled endpoint; it does not create a DNS record.
+
+If you upgraded an older binary manually, run `mesh ssh-config` on the computer you are connecting from to generate or repair its aliases. This uses the existing roster without contacting peers or changing access.
 
 ## 3. Return a file
 
@@ -85,6 +99,22 @@ The agent prepares a brief and invokes `mesh handoff`. Success includes `termina
 A new destination conversation starts with the brief; an existing conversation reads it on its next user turn. The source conversation remains alive. Normal provider approval and workspace trust prompts still apply.
 
 Use `mesh session` for the current conversation's identity; cached `MESH_*` variables can be stale. Switching needs an attached Mesh terminal. After an upgrade, refresh integration on both computers and start a new Mesh terminal to load the new controller and launch settings.
+
+### Detach, exit, and return later
+
+| Action | Result |
+| --- | --- |
+| **Ctrl-b d** | Detach from Mesh while keeping the agent conversations running. |
+| The agent's normal quit command | Exit that agent and return to your calling shell, with its final message and any native resume command visible. Other live conversations keep running. |
+| **Ctrl-C** | Follow the provider's behavior: an interrupted turn leaves the chat open; an actual agent exit returns to your shell. |
+
+To return to a local Codex conversation, run:
+
+```sh
+mesh codex --resume
+```
+
+For a remote conversation, select the same computer, for example `mesh codex homelab --resume`. Include the same `--project` path if you originally supplied one. Mesh reattaches a matching live session; if the agent has exited, Codex/Claude use their native resume picker. A lost SSH connection is treated separately from a confirmed agent exit.
 
 ## Next steps
 
