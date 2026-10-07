@@ -102,6 +102,7 @@ The wizard asks whether this computer should accept incoming work, whether to co
 - Choose **no** for incoming work if your laptop should only submit jobs. It can still fetch remote results.
 - Approving installation and mutual access lets Mesh install itself in the selected remote accounts and exchange the public keys needed for participating incoming-enabled peers.
 - Setup adds removable instructions for detected agents and installs the user service. The remote enrollment does the same by default.
+- Enrollment configures `ssh NAME` for incoming-enabled peers using their Mesh address, account, port, key, and trusted host keys. Peer updates keep these aliases current.
 
 Each account retains its own private key and provider login. Enroll accounts you trust: a Mesh SSH key grants access to that account's shell, not just the task workspace.
 
@@ -113,6 +114,8 @@ mesh service status
 ```
 
 Your destination should be listed as **reachable**. Restart any already-running agent so it reads the installed Mesh instructions, then try the first tutorial.
+
+You can also connect directly with `ssh homelab`, using the destination's Mesh name. On an older installation, run `mesh ssh-config` on the computer you are connecting from to generate its SSH aliases.
 
 <details>
 <summary><strong>Prefer manual setup?</strong></summary>
@@ -137,6 +140,8 @@ Enrollment installs `~/.local/bin/mesh` on the destination, integrates detected 
 ### Upgrading
 
 From your checkout, run `git pull --ff-only`, then `sh scripts/install.sh --no-setup` and `mesh integrate`. Re-enroll each destination to update its binary and managed instructions, using the same host, account, and Mesh name as before. Enrollment retains its existing identity.
+
+The installer repairs SSH aliases for an existing local installation, including with `--no-setup`. If you update a binary manually, run `mesh ssh-config` on that computer. This only updates local SSH client settings; it does not grant access or contact peers.
 
 Start a new Mesh terminal after upgrading so it loads the new controller and conversation binding. Already-running agents remain alive; their old launch settings are not replaced automatically. See the [reference](docs/REFERENCE.md#native-terminal-sessions) for session behavior.
 

@@ -17,6 +17,10 @@ for mesh_binary in dist/mesh-*; do
   mv "$mesh_stage" "$mesh_install_dir/$(basename "$mesh_binary")"
 done
 printf 'Installed in %s. Ensure this directory is on your shell PATH.\n' "$mesh_install_dir"
+mesh_state_dir="${MESH_HOME:-${MESH_USER_HOME:-$HOME}/.ai-mesh}"
+if [ -f "$mesh_state_dir/config.json" ]; then
+  "$mesh_install_dir/mesh" ssh-config
+fi
 if [ "${1:-}" != '--no-setup' ]; then
   exec "$mesh_install_dir/mesh" setup
 fi
