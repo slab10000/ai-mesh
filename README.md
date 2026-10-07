@@ -145,6 +145,20 @@ The installer repairs SSH aliases for an existing local installation, including 
 
 Start a new Mesh terminal after upgrading so it loads the new controller and conversation binding. Already-running agents remain alive; their old launch settings are not replaced automatically. See the [reference](docs/REFERENCE.md#native-terminal-sessions) for session behavior.
 
+### Uninstalling
+
+Run from a normal terminal outside a Mesh session:
+
+```sh
+mesh uninstall --dry-run   # Preview the cleanup
+mesh uninstall             # Confirm and remove this computer's installation
+mesh uninstall --all       # Also remove Mesh from every enrolled computer
+```
+
+Uninstall stops Mesh services, jobs, and terminal sessions, revokes this computer's access on peers, and removes installed binaries, state, keys, logs, managed SSH entries, agent instruction blocks and backups, and recorded handoff folders. **All data under `MESH_HOME` is permanently deleted**, including managed workspaces and their outputs. Agent installations and credentials, unrelated settings, user projects, and results already delivered outside Mesh state are preserved.
+
+Use `--yes` to confirm without a prompt. `--all` requires an upgraded Mesh executable and working SSH access on every enrolled computer; it checks all destinations before removal and retains local credentials if remote cleanup fails. `--local-only` skips peer revocation when a peer cannot be reached. See the [uninstall reference](docs/REFERENCE.md#uninstall) for custom paths and recovery.
+
 ## Tutorials
 
 Run these commands from your repository checkout after enrollment. Substitute your destination's Mesh name for `homelab`. Put flags before the task prompt or shell command.

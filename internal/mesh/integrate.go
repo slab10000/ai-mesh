@@ -59,6 +59,7 @@ The Mesh CLI is available at ` + "`" + exe + "`" + `. Use your shell tool to cal
 `
 	var changed []string
 	for agent, path := range agentPaths(s.UserHome) {
+		original := path
 		if !remove {
 			if _, e := exec.LookPath(agent); e != nil {
 				continue
@@ -102,6 +103,39 @@ The Mesh CLI is available at ` + "`" + exe + "`" + `. Use your shell tool to cal
 		if e != nil {
 			return changed, e
 		}
+		if !remove {
+			if e := s.recordIntegrationPaths(original, path); e != nil {
+				return changed, e
+			}
+		}
 	}
 	return changed, nil
+}
+
+// Remember custom provider homes and symlink targets even if the environment
+// or the selected AGENTS.override.md changes before uninstall.
+func (s *Store) recordIntegrationPaths(paths ...string) error {
+	return withLock(s.path("integration-paths.lock"), func() error {
+		var saved []string
+		if err := readJSON(s.path("integration-paths.json"), &saved); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		for _, path := range paths {
+			path, err := filepath.Abs(path)
+			if err != nil {
+				return err
+			}
+			found := false
+			for _, old := range saved {
+				if old == path {
+					found = true
+					break
+				}
+			}
+			if !found {
+				saved = append(saved, path)
+			}
+		}
+		return writeJSON(s.path("integration-paths.json"), saved)
+	})
 }

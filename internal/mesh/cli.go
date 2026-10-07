@@ -31,6 +31,7 @@ Setup
   mesh ssh-config                           Repair SSH aliases for enrolled peers
   mesh integrate [--remove]                 Managed instructions for installed agents
   mesh service install|status|uninstall      User launchd/systemd service
+  mesh uninstall [--all] [--yes] [--dry-run] Remove Mesh and its stored data
   mesh doctor                               Local prerequisite checks
 
 Inventory
@@ -110,6 +111,8 @@ func Main(args []string) error {
 	command := args[0]
 	args = args[1:]
 	switch command {
+	case "uninstall":
+		return s.UninstallCLI(args)
 	case "init":
 		f := flags("init")
 		name := f.String("name", "", "machine name")
