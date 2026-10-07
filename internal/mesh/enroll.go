@@ -97,7 +97,7 @@ func (s *Store) Init(name, address, username string, port, maxJobs int, incoming
 			return result, e
 		}
 	}
-	return result, nil
+	return result, s.SSHConfig()
 }
 
 func hostKeys() []string {
@@ -233,7 +233,10 @@ func (s *Store) writeAccess(c Config) error {
 		if e := atomicWrite(s.path("ssh-server", "authorized_keys"), []byte(strings.Join(meshKeys, "\n")+"\n"), 0600); e != nil {
 			return e
 		}
-		return atomicWrite(s.path("known_hosts"), []byte(strings.Join(known, "\n")+"\n"), 0600)
+		if e := atomicWrite(s.path("known_hosts"), []byte(strings.Join(known, "\n")+"\n"), 0600); e != nil {
+			return e
+		}
+		return s.writeSSHConfig(c)
 	})
 }
 

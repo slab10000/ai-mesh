@@ -28,6 +28,7 @@ Setup
   mesh access --incoming=true|false         Change this account's incoming access
   mesh ssh-server install --address IP [--port 2222]  Optional macOS user SSH listener
   mesh ssh-server status|uninstall          Inspect/remove that listener
+  mesh ssh-config                           Repair SSH aliases for enrolled peers
   mesh integrate [--remove]                 Managed instructions for installed agents
   mesh service install|status|uninstall      User launchd/systemd service
   mesh doctor                               Local prerequisite checks
@@ -166,6 +167,11 @@ func Main(args []string) error {
 			return e
 		}
 		return printJSON(p)
+	case "ssh-config":
+		if len(args) != 0 {
+			return errors.New("use mesh ssh-config")
+		}
+		return s.SSHConfig()
 	case "ssh-server":
 		if e := need(args, 1, "mesh ssh-server install|status|uninstall"); e != nil {
 			return e

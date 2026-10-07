@@ -782,6 +782,15 @@ func TestEnrollmentUsesOnlySelectedAccounts(t *testing.T) {
 		if e != nil || len(config.Peers) != 2 {
 			t.Fatalf("incomplete roster: %+v %v", config, e)
 		}
+		aliases, e := os.ReadFile(filepath.Join(s.UserHome, ".ssh", "config"))
+		if e != nil {
+			t.Fatal(e)
+		}
+		for _, peer := range config.Peers {
+			if strings.Contains(string(aliases), "Host "+peer.Name+"\n") != peer.Incoming {
+				t.Fatalf("enrollment generated incorrect aliases on %s: %s", config.Self.Name, aliases)
+			}
+		}
 	}
 	keys, _ := os.ReadFile(filepath.Join(a.UserHome, ".ssh", "authorized_keys"))
 	if strings.Contains(string(keys), "ai-mesh-managed:") {

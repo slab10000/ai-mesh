@@ -25,6 +25,10 @@ Without `--mutual`, enrollment connects the originating account and the selected
 
 SSH aliases are convenient for direct enrollment. For mutual access, use a hostname or Tailscale address that every participating computer can resolve; an alias defined only on the Mac is not automatically available on the server.
 
+Enrollment creates a managed block at the beginning of `~/.ssh/config`, so `ssh NAME` uses each incoming-enabled peer's Mesh endpoint, account, port, identity key, and trusted host keys. These settings take precedence over later SSH defaults for those names. Other configuration is preserved, existing symlinks are followed, and a `.pre-mesh` backup is saved before changing a nonempty file. Removing a peer or receiving its incoming opt-out removes its alias; endpoint updates regenerate it. If the endpoint is already a local SSH alias with the same name, its original `HostName` mapping is retained.
+
+Run `mesh ssh-config` to repair aliases after manually upgrading an existing binary. It uses the enrolled roster and does not contact peers, exchange keys, or change access. The installer and repeated `mesh init` also repair existing aliases. A Mesh name is a local SSH shortcut, not a new DNS entry; the saved endpoint still needs to be reachable from the connecting computer.
+
 ```sh
 mesh machines --check --json
 mesh machine show homelab
