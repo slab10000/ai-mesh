@@ -226,6 +226,35 @@ Agent integration appends a marked block to the active global instruction file (
 
 `MESH_HOME` selects an alternative state directory. `MESH_USER_HOME` is intended for isolated development fixtures. Remote enrollment uses the standard `~/.ai-mesh` and `~/.local/bin/mesh` locations. Do not clone a state directory between computers: each installation needs its own identity and private key.
 
+## Uninstall
+
+```sh
+mesh uninstall --dry-run
+mesh uninstall --yes
+mesh uninstall --all --dry-run
+mesh uninstall --all --yes
+mesh uninstall --local-only --yes
+```
+
+Run uninstall from a normal terminal outside Mesh. Without `--yes`, type `uninstall` at the confirmation prompt. `--dry-run` lists the cleanup without stopping processes, editing files, or revoking access; with `--all`, it also previews each destination over SSH.
+
+The command removes:
+
+- The Mesh user service and optional macOS SSH listener, including their definitions and systemd enablement links.
+- Running local jobs, Mesh's dedicated tmux server and conversations, controller sockets, and stored session metadata. Other tmux servers remain running.
+- The entire state directory, including private keys, trusted host keys, inventory, queued updates, task inputs, outputs, logs, and Mesh-managed workspaces.
+- Mesh blocks in SSH configuration and agent instructions, managed `authorized_keys` lines, and associated `.pre-mesh` backups and `.mesh.lock` files. Surrounding content and later user edits are preserved; managed-only files are deleted.
+- Recorded `.mesh/handoffs/ID/` folders in external projects, including briefs, inputs, and read markers. Parent directories are removed only when empty.
+- `mesh` and the four `mesh-{darwin,linux}-{arm64,amd64}` binaries in `~/.local/bin`, the running `mesh` executable's directory, and `MESH_INSTALL_DIR` when set.
+
+Provider installations, authentication, shared SSH host keys, source checkouts, user project files, and delivered results outside Mesh state remain. Mesh cannot identify arbitrary files created by a user's shell command or agent as uninstallable application files. Shell `PATH` lines added manually also remain. No administrator privileges are needed.
+
+By default, uninstall asks enrolled peers to revoke this computer before deleting its local credentials. If a peer cannot be reached, local state and the executable remain available for retry. `--local-only` explicitly skips that step; stale aliases, inventory, and authorized key entries can remain on other computers. Remove this computer with `mesh peers remove NAME` there when they become reachable.
+
+`--all` removes this installation and the computers in its saved peer roster; it does not recursively discover other meshes. Every destination must have a version supporting `uninstall` (re-enroll to upgrade first), a reachable SSH endpoint, and permission to remove its Mesh files and services. Outgoing-only computers may need SSH configured separately. Remote identity checks prevent uninstalling a replacement computer at an old address. All remaining destinations pass a preview before the first removal. Confirmed removals are journaled locally, so retrying `--all` skips them. A failed or lost SSH reply is reported as incomplete; inspect that destination through ordinary SSH before retrying. This is not a distributed transaction: earlier successful removals are not rolled back.
+
+Keep the original `MESH_HOME` and `MESH_INSTALL_DIR` when using custom locations. New integrations record custom provider instruction paths so uninstall can find them after the environment changes. For integrations made by older Mesh versions, also supply their original `CODEX_HOME` or `CLAUDE_CONFIG_DIR`. Missing installations can be cleaned without initialization; unsafe state roots, symlinked deletion paths, malformed blocks, and services belonging to another state directory cause an error. Stop other Mesh commands before uninstalling, and retry after fixing any reported file or service error.
+
 ## Development and current boundaries
 
 ```sh
