@@ -23,6 +23,9 @@ type Candidate struct {
 	Port         int    `json:"port"`
 	Source       string `json:"source"`
 	SSHReachable *bool  `json:"ssh_reachable,omitempty"`
+	// Keep the SSH alias as Host so enrollment retains its account/key settings.
+	sshHost string
+	aliases []string
 }
 type tailscaleStatus struct {
 	Self *tailscaleNode           `json:"Self"`
@@ -57,7 +60,11 @@ func parseTailscale(b []byte) ([]Candidate, error) {
 			host = p.TailscaleIPs[0]
 		}
 		if host != "" {
-			out = append(out, Candidate{Name: p.HostName, Host: host, Port: 22, Source: "tailscale"})
+			aliases := append([]string{host}, p.TailscaleIPs...)
+			if p.DNSName != "" {
+				aliases = append(aliases, strings.Split(host, ".")[0])
+			}
+			out = append(out, Candidate{Name: p.HostName, Host: host, Port: 22, Source: "tailscale", aliases: aliases})
 		}
 	}
 	return out, nil
@@ -88,6 +95,10 @@ func parseSSHConfig(b []byte) []Candidate {
 		} else {
 			for i := range current {
 				switch key {
+				case "hostname":
+					if current[i].sshHost == "" {
+						current[i].sshHost = value
+					}
 				case "user":
 					current[i].User = value
 				case "port":
@@ -100,6 +111,66 @@ func parseSSHConfig(b []byte) []Candidate {
 	}
 	flush()
 	return out
+}
+
+// Merge Tailscale's address with a saved SSH connection, retaining the SSH
+// alias and its login defaults. Separate SSH aliases may select different
+// accounts or keys, so they remain separate choices even on the same host.
+func mergeCandidates(list []Candidate) []Candidate {
+	normalize := func(host string) string { return strings.ToLower(strings.TrimSuffix(host, ".")) }
+	var merged []Candidate
+	for _, p := range list {
+		if p.Source == "ssh-config" {
+			merged = append(merged, p)
+		}
+	}
+	for _, p := range list {
+		if p.Source == "ssh-config" {
+			continue
+		}
+		matched := false
+		if p.Source == "tailscale" {
+			for i := range merged {
+				ssh := &merged[i]
+				if !strings.Contains(ssh.Source, "ssh-config") || ssh.Port != p.Port {
+					continue
+				}
+				host := ssh.sshHost
+				if host == "" {
+					host = ssh.Host
+				}
+				for _, alias := range append([]string{p.Host}, p.aliases...) {
+					if normalize(host) == normalize(alias) {
+						ssh.Source = "ssh-config+tailscale"
+						matched = true
+						break
+					}
+				}
+			}
+		}
+		if !matched {
+			merged = append(merged, p)
+		}
+	}
+	seen := map[string]bool{}
+	var unique []Candidate
+	for _, p := range merged {
+		key := normalize(p.Host) + ":" + strconv.Itoa(p.Port)
+		if !seen[key] {
+			seen[key] = true
+			unique = append(unique, p)
+		}
+	}
+	sort.Slice(unique, func(i, j int) bool {
+		if unique[i].Name != unique[j].Name {
+			return unique[i].Name < unique[j].Name
+		}
+		if unique[i].Host != unique[j].Host {
+			return unique[i].Host < unique[j].Host
+		}
+		return unique[i].Port < unique[j].Port
+	})
+	return unique
 }
 
 func (s *Store) Discover(lan, check bool, cidr string) ([]Candidate, []string) {
@@ -151,18 +222,7 @@ func (s *Store) Discover(lan, check bool, cidr string) ([]Candidate, []string) {
 			}
 		}
 	}
-	unique := map[string]Candidate{}
-	for _, p := range list {
-		key := p.Host + ":" + strconv.Itoa(p.Port)
-		if _, ok := unique[key]; !ok {
-			unique[key] = p
-		}
-	}
-	list = nil
-	for _, p := range unique {
-		list = append(list, p)
-	}
-	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
+	list = mergeCandidates(list)
 	if check {
 		var wg sync.WaitGroup
 		slots := make(chan struct{}, 16)
@@ -173,7 +233,7 @@ func (s *Store) Discover(lan, check bool, cidr string) ([]Candidate, []string) {
 				slots <- struct{}{}
 				defer func() { <-slots }()
 				host := list[i].Host
-				if list[i].Source == "ssh-config" {
+				if strings.Contains(list[i].Source, "ssh-config") {
 					out := probe("ssh", "-G", host)
 					for _, line := range strings.Split(out, "\n") {
 						if strings.HasPrefix(line, "hostname ") {

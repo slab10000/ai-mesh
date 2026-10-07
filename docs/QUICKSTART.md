@@ -2,6 +2,8 @@
 
 This guide uses a local computer named `laptop` and an SSH destination named `homelab`, accessed as `alice`. Replace those names with your own. See the [README prerequisites](../README.md#prerequisites) for supported platforms and tools.
 
+For the guided installation, follow the [README wizard walkthrough](../README.md#installation): `sh scripts/install.sh` builds and installs Mesh, then starts setup automatically. The steps below show the equivalent manual setup. When asked to sign in, use the destination's user account (`alice`), rather than its computer name (`homelab`). SSH requests a password only when needed, and hides typed characters.
+
 ## 1. Install locally
 
 On the computer that will submit work, with Git and Go 1.24+ installed:

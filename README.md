@@ -64,26 +64,21 @@ Real Codex jobs have been validated in both directions between a Mac and a Linux
 
 ## Installation
 
-### 1. Clone and build
+### 1. Clone the repository
 
-Install from source on the computer you will use to set up your mesh:
+Start on the computer you will use to set up your mesh, with Git and Go 1.24+ installed. On a Mac with [Homebrew](https://brew.sh), `brew install go git tmux` installs the build tools and tmux for interactive sessions.
 
 ```sh
 git clone https://github.com/slab10000/ai-mesh.git
 cd ai-mesh
-sh scripts/install.sh --no-setup
-export PATH="$HOME/.local/bin:$PATH"
-mesh version
-mesh doctor
+go version
 ```
 
-The script builds the native executable plus all four macOS/Linux destination binaries and installs them in `~/.local/bin`. `--no-setup` lets you inspect the installation before enrollment. Add the `export PATH=...` line to your shell startup file, such as `~/.zshrc` or `~/.bashrc`, so future terminals can find `mesh`.
-
-`mesh doctor` reports available tools and configuration. Before setup, a missing configuration is expected; missing optional agents or Tailscale are also fine. To inspect the CLI without installing anything, use `go build -o bin/mesh ./cmd/mesh` followed by `./bin/mesh help`.
+The destination computer does not need Go: enrollment sends it a compiled Mesh executable. It does need OpenSSH, and tmux if you want interactive sessions there.
 
 ### 2. Check SSH access
 
-In this guide, **`homelab` is your destination computer** and **`alice` is your account there**. Replace them with your own hostname and username:
+In this guide, **`homelab` is your destination computer** and **`alice` is your user account on that computer**. The username is the account you log in with, which may differ from the computer's name. Replace both values:
 
 ```sh
 ssh alice@homelab 'uname -s'
@@ -91,13 +86,32 @@ ssh alice@homelab 'uname -s'
 
 Complete the destination's usual authentication and host-key verification. If this does not connect, resolve SSH access before enrollment. Mesh setup does not enable a system SSH server. A Mac can use either Remote Login or the [optional per-account SSH listener](docs/REFERENCE.md#enroll-computers).
 
-### 3. Run setup
+For tasks in both directions, your local computer must also accept SSH connections. Enable Remote Login in macOS settings before choosing incoming access, or configure the optional listener after local initialization. Choosing **yes** for incoming work grants enrolled peers access; it does not turn on an SSH server. If you only want to submit work to `homelab`, choose **no** for incoming work.
+
+### 3. Install and run the wizard
 
 ```sh
-mesh setup
+export PATH="$HOME/.local/bin:$PATH"
+sh scripts/install.sh
 ```
 
-The wizard asks whether this computer should accept incoming work, whether to configure mutual access on selected computers, and what to call the local computer. It then offers discovered destinations or lets you enter a hostname.
+The script builds the native executable and all four macOS/Linux destination binaries, installs them in `~/.local/bin`, and starts `mesh setup` automatically. Add the PATH line once to your shell startup file, such as `~/.zshrc` or `~/.bashrc`, so future terminals can find `mesh`.
+
+The wizard guides you through these choices:
+
+| Prompt | What to enter |
+| --- | --- |
+| Allow other enrolled computers to run tasks here? | **No** for an outgoing-only laptop; **yes** if this computer has a reachable SSH server and should accept work. |
+| Install Mesh and configure mutual access on selected computers? | **Yes** to add another computer now. **No** finishes local setup only. Incoming access still follows each computer's choice. |
+| Name this computer | A simple label, such as `laptop`. |
+| Address other computers can use to reach this computer | A reachable hostname or IP. If the default is your Tailscale IP, accept it when peers use that Tailscale network. An outgoing-only laptop can also accept the default. |
+| Select computer numbers or enter a hostname | Select the destination, or enter `homelab`. SSH-config and Tailscale entries for the same address are combined, retaining the saved SSH connection and its account/key settings. Separate SSH account aliases or ports remain separate choices. |
+| User account on the destination | The remote login account, such as `alice`. A saved SSH account appears as the default. |
+| Name to show for this computer in Mesh | A label, such as `homelab`; this does not change the login account. |
+
+SSH then signs in using an existing key, or asks for that account's password. **Password input is hidden**, so typing does not display characters or asterisks. SSH may also ask you to verify the host key or complete MFA. Mesh does not store passwords. If the connection or sign-in fails, the wizard offers another attempt where you can correct the account name. Errors after installation has begun are reported separately.
+
+Discovery lists possible destinations; **unchecked** means SSH has not yet been tested. A phone or tablet appearing through Tailscale does not imply that it runs an SSH server or supports Mesh.
 
 - Choose **no** for incoming work if your laptop should only submit jobs. It can still fetch remote results.
 - Approving installation and mutual access lets Mesh install itself in the selected remote accounts and exchange the public keys needed for participating incoming-enabled peers.
@@ -106,9 +120,13 @@ The wizard asks whether this computer should accept incoming work, whether to co
 
 Each account retains its own private key and provider login. Enroll accounts you trust: a Mesh SSH key grants access to that account's shell, not just the task workspace.
 
+To rerun the wizard, use `mesh setup`; it retains an existing installation's identity. To install without starting the wizard, use `sh scripts/install.sh --no-setup`, then run `mesh doctor` and `mesh setup` when ready. Before initialization, a missing configuration in `mesh doctor` is expected; missing optional agents or Tailscale are also fine.
+
 ### 4. Verify the connection
 
 ```sh
+mesh version
+mesh doctor
 mesh machines --check
 mesh service status
 ```
@@ -144,6 +162,8 @@ From your checkout, run `git pull --ff-only`, then `sh scripts/install.sh --no-s
 The installer repairs SSH aliases for an existing local installation, including with `--no-setup`. If you update a binary manually, run `mesh ssh-config` on that computer. This only updates local SSH client settings; it does not grant access or contact peers.
 
 Start a new Mesh terminal after upgrading so it loads the new controller and conversation binding. Already-running agents remain alive; their old launch settings are not replaced automatically. See the [reference](docs/REFERENCE.md#native-terminal-sessions) for session behavior.
+
+On macOS, a rebuilt Mesh executable can require folder permissions again. If an incoming agent job pauses before producing output, check the Mac for a privacy prompt allowing Mesh to access the required folder, such as Documents. Approve that prompt on the Mac, then retry a failed test if necessary. Installing Mesh and granting SSH access do not grant macOS folder permissions.
 
 ### Uninstalling
 
@@ -324,6 +344,10 @@ mesh machines --check --json
 | --- | --- |
 | `mesh: command not found` | Add `~/.local/bin` to `PATH` and open a new terminal. |
 | Destination is unreachable | Check ordinary SSH, the enrolled account/address/port, and `mesh machines --check`. |
+| Password rejected during setup | Check that the username is an account on the destination, rather than its computer name. Retry sign-in in the wizard; use that account's password or its existing SSH key. |
+| Typing a password shows nothing | This is normal SSH behavior. Enter the password and press Enter. |
+| Remote work succeeds but peers cannot reach this Mac | Incoming access also requires a reachable SSH server. Enable Remote Login or configure the optional Mesh listener; verify from the peer. |
+| An incoming agent job on Mac stays running with no output | Check for a macOS folder-access prompt for Mesh, particularly after reinstalling or rebuilding it. An earlier grant may no longer match the new executable. |
 | `tmux` or the agent is missing | Install it on every computer participating in that interactive session; inspect `mesh doctor` there. |
 | Job is `needs_attention` | Inspect `mesh status JOB_ID` and `mesh watch JOB_ID`; resolve the destination provider's login, permission, or usage issue. |
 | Job completed but results are pending | Run `mesh collect JOB_ID`. For a local file conflict, use `mesh collect JOB_ID --output ./results/recovered`. |

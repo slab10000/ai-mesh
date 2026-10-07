@@ -2,7 +2,21 @@
 
 Tested on October 5, 2026, America/Chicago (UTC report timestamps are October 6). This records actual work on the Mac and `blas@green-lighthouse`, in addition to the isolated Go tests.
 
-Results below are chronological. The [visible handoff regression and follow-up](#visible-handoff-regression--october-6-2026) is the latest validation of conversation routing and confirmed switching; it documents a gap found after the earlier acceptance run. Earlier screenshots remain evidence of their respective runs.
+The [installation-wizard check](#installation-wizard--october-7-2026) records the latest setup validation. The [visible handoff regression and follow-up](#visible-handoff-regression--october-6-2026) remains the latest validation of context handoff. Earlier screenshots remain evidence of their respective runs.
+
+## Installation wizard — October 7, 2026
+
+Ran `sh scripts/install.sh` in a real terminal on the Mac. The script built and installed the native executable and all four destination binaries, then launched setup. The existing Mac identity was retained; green-lighthouse had no installed Mesh binary before enrollment. Selected incoming access and mutual enrollment, retained the reachable Mac address, selected green-lighthouse, and accepted its saved `blas` account. The wizard installed Mesh, managed agent instructions, and the Linux user service. macOS Remote Login was already accepting connections on port 22.
+
+The destination appeared once as `ssh-config+tailscale`. Its SSH alias and account were retained. Both computers reported reachable; both background services were active. Direct SSH and reverse SSH succeeded using the enrolled configuration.
+
+**14 of 15 real-machine acceptance checks passed.** All 13 command workflows and a real Codex task on green-lighthouse passed. The reverse Codex test timed out before producing output and its test jobs were cancelled. macOS TCC logs identified a pending Documents-folder permission request for Mesh: the rebuilt binary no longer matched the earlier code requirement. This is an outstanding user-granted OS permission, not a passing reverse-agent test. The raw [setup results](evidence/setup-results-2026-10-07.json) retain that failure.
+
+Interactive shell checks passed: local and remote identities, switch and return, retained shell variables, detach and resume with the same Mac process, and revisiting the same remote process. The first shell launch used a nonexistent test directory; after creating it, the checks passed. The dedicated test sessions were closed afterward. See [interactive results](evidence/setup-interactive-2026-10-07.json).
+
+`make check` passed (`go vet` and the complete race-enabled test suite). The installer built all four platform binaries. New isolated regressions cover SSH/Tailscale merging while preserving different accounts and ports, saved-account defaults, correcting a failed sign-in, requiring a username, and avoiding a retry after partial enrollment. Real installation used an existing SSH key; password/MFA sign-in was not exercised against the real computers.
+
+The README now explains the installer-led wizard, account versus computer names, hidden SSH password entry, Tailscale addresses, duplicate discovery, the separate SSH-server prerequisite for incoming access, and macOS folder prompts after rebuilding.
 
 ## Result
 

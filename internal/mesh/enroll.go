@@ -278,6 +278,15 @@ type EnrollOptions struct {
 	Service   bool
 }
 
+// Only connection failures before any remote installation are safe for the
+// setup wizard to retry with a different account.
+type enrollmentSSHError struct{ err error }
+
+func (e *enrollmentSSHError) Error() string {
+	return "SSH connection or sign-in failed: " + e.err.Error()
+}
+func (e *enrollmentSSHError) Unwrap() error { return e.err }
+
 func (s *Store) Enroll(o EnrollOptions) (Peer, error) {
 	c, e := s.Config()
 	if e != nil {
@@ -307,9 +316,14 @@ func (s *Store) Enroll(o EnrollOptions) (Peer, error) {
 		}
 		return cmd.Output()
 	}
-	out, e := run(`uname -s; uname -m; printf '%s\n' "$HOME"`, nil)
+	// SSH reads passwords, MFA and host verification from the terminal. Give
+	// the user time to answer; the two-minute command timeout is for operations
+	// after sign-in. ConnectTimeout still bounds establishing the connection.
+	login := exec.Command("ssh", append(base, o.Endpoint.Host, `uname -s; uname -m; printf '%s\n' "$HOME"`)...)
+	login.Stderr = os.Stderr
+	out, e := login.Output()
 	if e != nil {
-		return Peer{}, fmt.Errorf("SSH authentication failed: %w", e)
+		return Peer{}, &enrollmentSSHError{e}
 	}
 	parts := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(parts) != 3 {
