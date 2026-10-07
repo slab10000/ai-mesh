@@ -1,0 +1,121 @@
+{
+  "run": "20261007T075132Z",
+  "target": "green-lighthouse",
+  "origin": "macbook",
+  "results": [
+    {
+      "name": "discovery",
+      "status": "pass",
+      "target_found": true,
+      "tailscale_infrastructure_filtered": true,
+      "seconds": 0.03
+    },
+    {
+      "name": "live inventory",
+      "status": "pass",
+      "reachable": [
+        "macbook",
+        "green-lighthouse"
+      ],
+      "seconds": 0.15
+    },
+    {
+      "name": "files, traces, execution vs delivery",
+      "status": "pass",
+      "job": "1526219aec449fcd1d9cfba03245fb35",
+      "execution_before_collection": "completed",
+      "delivery_before_collection": "pending",
+      "delivery_after_collection": "delivered",
+      "sha256": "bdd2e8bef1e330bfa3f6087b07dbedc661e45e7151288130a63b0fb399742f35",
+      "seconds": 2.11
+    },
+    {
+      "name": "reverse work and nested delegation",
+      "status": "pass",
+      "parent_job": "01dbce3ce680645b266671a7bb2ab846",
+      "child_hostname": "Blass-MacBook-Pro-2.local",
+      "path": "server \u2192 Mac \u2192 server \u2192 Mac",
+      "seconds": 2.46
+    },
+    {
+      "name": "strict placement",
+      "status": "pass",
+      "job": "ea19310bdbfd6917d6643f259ccb2e9a",
+      "forbidden_child_rejected": true,
+      "seconds": 1.05
+    },
+    {
+      "name": "cancellation",
+      "status": "pass",
+      "job": "76086ff41cfbd5135b8fb57828c98700",
+      "seconds": 1.26
+    },
+    {
+      "name": "failed command",
+      "status": "pass",
+      "job": "e3369f1af955b21240ddd526daed6703",
+      "exit_code": 23,
+      "seconds": 0.38
+    },
+    {
+      "name": "required deliverable",
+      "status": "pass",
+      "job": "a9fbf59a864a4045f9035546bfd1cf5f",
+      "missing_output_detected": true,
+      "seconds": 0.36
+    },
+    {
+      "name": "overwrite protection",
+      "status": "pass",
+      "job": "5ee3cf593b1dae7f09c33893be2bbfad",
+      "existing_file_preserved": true,
+      "seconds": 1.39
+    },
+    {
+      "name": "parallel jobs and queue",
+      "status": "pass",
+      "jobs": [
+        "d6e5320360647e6c249de75886301c7c",
+        "c212b92644859d85eebf3dd181eea5f4",
+        "29ea4aedd8b9c0fc2aca430ab9fd941a",
+        "6175d24f8793e6e6e4de209a7f9f5e51"
+      ],
+      "simultaneous_submissions": 4,
+      "seconds": 5.18
+    },
+    {
+      "name": "lost SSH reply, retry without duplicates",
+      "status": "pass",
+      "job": "ef44dad1731161255aa4ed05aeb428b1",
+      "remote_execution_count": 1,
+      "lost_submit_reply_recovered": true,
+      "seconds": 1.36
+    },
+    {
+      "name": "shared capabilities",
+      "status": "pass",
+      "shared_observation_added_and_removed": true,
+      "seconds": 1.83
+    },
+    {
+      "name": "automatic delivery",
+      "status": "pass",
+      "job": "6aebaafbe82d1c7b2053ae20567c5355",
+      "delivered_without_collect": true,
+      "seconds": 2.84
+    },
+    {
+      "name": "real codex",
+      "status": "pass",
+      "job": "291022eff944be7cb49d400bcb6c64f9",
+      "input_and_context_verified": true,
+      "seconds": 22.61
+    },
+    {
+      "name": "reverse codex",
+      "status": "fail",
+      "error": "timed out waiting for 0b93bfc8c81a32bd065ec562f31dac9a; requested test-job cancellation",
+      "seconds": 240.62
+    }
+  ]
+}

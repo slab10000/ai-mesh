@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -595,11 +596,15 @@ func (s *Store) RunCLI(args []string) error {
 }
 
 func ask(reader *bufio.Reader, prompt, defaultValue string) (string, error) {
-	fmt.Fprint(os.Stderr, prompt)
+	return askTo(reader, os.Stderr, prompt, defaultValue)
+}
+
+func askTo(reader *bufio.Reader, output io.Writer, prompt, defaultValue string) (string, error) {
+	fmt.Fprint(output, prompt)
 	if defaultValue != "" {
-		fmt.Fprintf(os.Stderr, " [%s]", defaultValue)
+		fmt.Fprintf(output, " [%s]", defaultValue)
 	}
-	fmt.Fprint(os.Stderr, ": ")
+	fmt.Fprint(output, ": ")
 	line, e := reader.ReadString('\n')
 	if e != nil {
 		return "", e
@@ -611,8 +616,12 @@ func ask(reader *bufio.Reader, prompt, defaultValue string) (string, error) {
 	return line, nil
 }
 func yes(reader *bufio.Reader, prompt string) (bool, error) {
+	return yesTo(reader, os.Stderr, prompt)
+}
+
+func yesTo(reader *bufio.Reader, output io.Writer, prompt string) (bool, error) {
 	for {
-		value, e := ask(reader, prompt+" (yes/no)", "no")
+		value, e := askTo(reader, output, prompt+" (yes/no)", "no")
 		if e != nil {
 			return false, e
 		}
@@ -621,6 +630,53 @@ func yes(reader *bufio.Reader, prompt string) (bool, error) {
 			return true, nil
 		case "no", "n":
 			return false, nil
+		}
+	}
+}
+
+func setupEnroll(reader *bufio.Reader, output io.Writer, candidate Candidate, enroll func(EnrollOptions) (Peer, error)) (Peer, error) {
+	fmt.Fprintf(output, "\nSign in to %s to install Mesh.\n", candidate.Host)
+	fmt.Fprintln(output, "Use your user account on that computer (for example, alice). The computer's name and your account name may be different.")
+	username, name := candidate.User, candidate.Name
+	for {
+		var err error
+		username, err = askTo(reader, output, "User account on "+candidate.Host, username)
+		if err != nil {
+			return Peer{}, err
+		}
+		if username == "" {
+			fmt.Fprintln(output, "Enter the account you use to log in to that computer.")
+			continue
+		}
+		name, err = askTo(reader, output, "Name to show for this computer in Mesh", name)
+		if err != nil {
+			return Peer{}, err
+		}
+		options := EnrollOptions{Endpoint: Endpoint{candidate.Host, username, candidate.Port}, Name: name, Mutual: true, Integrate: true, Service: true}
+		if err := validateEndpoint(options.Endpoint); err != nil {
+			fmt.Fprintln(output, err)
+			continue
+		}
+		if !validID.MatchString(name) {
+			fmt.Fprintln(output, "Choose a Mesh name with letters, numbers, underscores, or hyphens (max 80).")
+			continue
+		}
+		fmt.Fprintf(output, "Connecting as %s@%s.\n", username, candidate.Host)
+		fmt.Fprintln(output, "SSH will use an existing key if available, or ask for this account's password. Password input is hidden; Mesh does not store it.")
+		fmt.Fprintln(output, "SSH may also ask you to verify the computer's host key or complete MFA.")
+		peer, err := enroll(options)
+		var connectionError *enrollmentSSHError
+		if !errors.As(err, &connectionError) {
+			return peer, err
+		}
+		fmt.Fprintln(output, connectionError)
+		fmt.Fprintln(output, "Check the account name and its password or SSH key, and that the computer accepts SSH connections.")
+		retry, readErr := yesTo(reader, output, "Try signing in again (you can change the account name)")
+		if readErr != nil {
+			return Peer{}, errors.Join(err, readErr)
+		}
+		if !retry {
+			return Peer{}, err
 		}
 	}
 }
@@ -686,16 +742,7 @@ func (s *Store) Setup() error {
 			}
 			candidate = candidates[n-1]
 		}
-		username, e := ask(r, "SSH username for "+candidate.Host, candidate.User)
-		if e != nil {
-			return e
-		}
-		name, e := ask(r, "Mesh name for "+candidate.Host, candidate.Name)
-		if e != nil {
-			return e
-		}
-		fmt.Fprintln(os.Stderr, "SSH will ask for any required password, MFA, and host verification directly.")
-		p, e := s.Enroll(EnrollOptions{Endpoint{candidate.Host, username, candidate.Port}, name, "", true, true, true})
+		p, e := setupEnroll(r, os.Stderr, candidate, s.Enroll)
 		if e != nil {
 			fmt.Fprintln(os.Stderr, "Enrollment:", e)
 			setupErrors = append(setupErrors, fmt.Errorf("%s: %w", candidate.Host, e))

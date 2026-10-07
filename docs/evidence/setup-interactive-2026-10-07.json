@@ -1,0 +1,13 @@
+{
+  "session_group": "dd99e77503853b85d753a931d110149f",
+  "mac_pid": 63997,
+  "linux_pid": 847323,
+  "checks": {
+    "local_shell_identity": "pass",
+    "remote_shell_identity": "pass",
+    "switch_and_back_preserve_mac_state": "pass",
+    "detach_and_resume_preserve_mac_pid": "pass",
+    "revisit_preserves_remote_state": "pass"
+  },
+  "first_attempt": "The test directory was missing; created it and reran the shell launch."
+}
